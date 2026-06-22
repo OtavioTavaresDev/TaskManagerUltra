@@ -1,0 +1,3823 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager</title>
+    <!-- Bibliotecas para YAML e TOML -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@iarna/toml@2.2.5/dist/toml.min.js"></script>
+    <style>
+        /* ===== RESET & BASE ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            transition: background 0.3s, color 0.3s;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        :root {
+            --bg: #f4f5f7;
+            --bg-card: #ffffff;
+            --bg-sidebar: #1e2a3a;
+            --bg-sidebar-hover: #2c3e50;
+            --text: #172b4d;
+            --text-light: #5e6c84;
+            --text-sidebar: #dfe3e8;
+            --border: #dfe1e6;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            --radius: 8px;
+            --primary: #0052cc;
+            --primary-hover: #0047b3;
+            --danger: #eb5a46;
+            --success: #61bd4f;
+            --warning: #f2b600;
+            --info: #00a3bf;
+            --priority-low: #61bd4f;
+            --priority-medium: #f2b600;
+            --priority-high: #f59e0b;
+            --priority-critical: #eb5a46;
+            --chat-font: 'Segoe UI', system-ui, sans-serif;
+            --chat-color: var(--text);
+        }
+        [data-theme="dark"] {
+            --bg: #1e1e2a;
+            --bg-card: #2d2d3f;
+            --bg-sidebar: #15161f;
+            --bg-sidebar-hover: #2a2b3e;
+            --text: #e4e6eb;
+            --text-light: #a0aec0;
+            --text-sidebar: #cbd5e0;
+            --border: #3d3d4f;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+            --primary: #4c8bff;
+            --primary-hover: #6a9fff;
+            --chat-color: var(--text);
+        }
+        a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+        button {
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-family: inherit;
+            color: inherit;
+        }
+        input,
+        textarea,
+        select {
+            font-family: inherit;
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 8px 12px;
+            width: 100%;
+            transition: border 0.2s;
+        }
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        /* ===== LAYOUT ===== */
+        .app {
+            display: flex;
+            flex: 1;
+            min-height: 100vh;
+        }
+
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            width: 240px;
+            background: var(--bg-sidebar);
+            color: var(--text-sidebar);
+            display: flex;
+            flex-direction: column;
+            padding: 16px 12px;
+            flex-shrink: 0;
+            transition: transform 0.3s;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        .sidebar-brand {
+            font-size: 20px;
+            font-weight: 700;
+            padding: 8px 12px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #fff;
+        }
+        .sidebar-brand span {
+            background: var(--primary);
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+        .sidebar-nav {
+            flex: 1;
+        }
+        .sidebar-nav a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: var(--radius);
+            color: var(--text-sidebar);
+            transition: background 0.2s;
+            margin-bottom: 2px;
+            font-size: 14px;
+        }
+        .sidebar-nav a:hover,
+        .sidebar-nav a.active {
+            background: var(--bg-sidebar-hover);
+            color: #fff;
+        }
+        .sidebar-nav .icon {
+            width: 20px;
+            text-align: center;
+        }
+        .sidebar-footer {
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 12px;
+            margin-top: 8px;
+        }
+        .sidebar-footer button {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: var(--radius);
+            color: var(--text-sidebar);
+            width: 100%;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        .sidebar-footer button:hover {
+            background: var(--bg-sidebar-hover);
+            color: #fff;
+        }
+        .sidebar-toggle {
+            display: none;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 6px 12px;
+            margin: 8px;
+            font-size: 20px;
+            color: var(--text);
+            position: fixed;
+            top: 8px;
+            left: 8px;
+            z-index: 1100;
+        }
+
+        /* ===== MAIN CONTENT ===== */
+        .main {
+            flex: 1;
+            padding: 20px 24px;
+            overflow-x: hidden;
+            background: var(--bg);
+        }
+        .page {
+            display: none;
+            animation: fade 0.25s ease;
+        }
+        .page.active {
+            display: block;
+        }
+        @keyframes fade {
+            from {
+                opacity: 0.5;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .page-header h2 {
+            font-weight: 600;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .page-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* ===== BUTTONS ===== */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: var(--radius);
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            border-color: var(--primary-hover);
+        }
+        .btn-danger {
+            background: var(--danger);
+            color: #fff;
+            border-color: var(--danger);
+        }
+        .btn-danger:hover {
+            opacity: 0.85;
+        }
+        .btn-success {
+            background: var(--success);
+            color: #fff;
+            border-color: var(--success);
+        }
+        .btn-success:hover {
+            opacity: 0.85;
+        }
+        .btn-sm {
+            padding: 4px 10px;
+            font-size: 12px;
+        }
+        .btn-icon {
+            padding: 6px 8px;
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        /* ===== BOARDS GRID ===== */
+        .boards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 18px;
+        }
+        .board-card {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 16px;
+            box-shadow: var(--shadow);
+            border-left: 6px solid #ccc;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            position: relative;
+        }
+        .board-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+        }
+        .board-card .board-name {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        .board-card .board-meta {
+            font-size: 13px;
+            color: var(--text-light);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .board-card .board-actions {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            display: flex;
+            gap: 4px;
+        }
+        .board-card .board-actions button {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        .board-card .board-actions button:hover {
+            background: rgba(0, 0, 0, 0.12);
+        }
+        .board-card .favorite-star {
+            color: #f2b600;
+        }
+
+        /* ===== KANBAN ===== */
+        .kanban-container {
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            padding: 8px 4px 16px;
+            align-items: flex-start;
+        }
+        .kanban-column {
+            min-width: 260px;
+            max-width: 300px;
+            flex: 1 0 auto;
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+        }
+        .kanban-column-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        .kanban-column-header .col-title {
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .kanban-column-header .col-title .task-count {
+            background: var(--border);
+            border-radius: 20px;
+            padding: 0 8px;
+            font-size: 12px;
+            color: var(--text-light);
+        }
+        .kanban-column-header .col-actions {
+            display: flex;
+            gap: 4px;
+        }
+        .kanban-column-header .col-actions button {
+            font-size: 14px;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .kanban-column-header .col-actions button:hover {
+            background: var(--border);
+        }
+        .kanban-tasks {
+            flex: 1;
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 4px 0;
+        }
+        .kanban-tasks.drag-over {
+            background: rgba(0, 82, 204, 0.06);
+            border-radius: var(--radius);
+        }
+
+        /* ===== TASK CARD ===== */
+        .task-card {
+            background: var(--bg);
+            border-radius: var(--radius);
+            padding: 12px 14px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+            border-left: 4px solid transparent;
+            transition: all 0.15s;
+            cursor: grab;
+            position: relative;
+        }
+        .task-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.10);
+        }
+        .task-card.dragging {
+            opacity: 0.4;
+            transform: scale(0.96);
+        }
+        .task-card .task-title {
+            font-weight: 500;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        .task-card .task-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-light);
+            align-items: center;
+            margin-top: 4px;
+        }
+        .task-card .task-meta .badge {
+            padding: 1px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-priority-low {
+            background: #d4edda;
+            color: #155724;
+        }
+        .badge-priority-medium {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .badge-priority-high {
+            background: #fde5c4;
+            color: #b26500;
+        }
+        .badge-priority-critical {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        [data-theme="dark"] .badge-priority-low {
+            background: #1e3a2a;
+            color: #8bc4a0;
+        }
+        [data-theme="dark"] .badge-priority-medium {
+            background: #3d3a1e;
+            color: #d4b86a;
+        }
+        [data-theme="dark"] .badge-priority-high {
+            background: #4d2e1a;
+            color: #e6b87a;
+        }
+        [data-theme="dark"] .badge-priority-critical {
+            background: #4a1e1e;
+            color: #e68a80;
+        }
+        .task-card .task-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 4px;
+        }
+        .task-card .task-tags .tag {
+            font-size: 10px;
+            padding: 0 6px;
+            border-radius: 4px;
+            background: var(--border);
+            color: var(--text-light);
+        }
+        .task-card .task-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 6px;
+            font-size: 11px;
+            color: var(--text-light);
+        }
+        .task-card .task-footer .due {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .task-card .task-footer .due.overdue {
+            color: var(--danger);
+            font-weight: 600;
+        }
+        .task-card .task-check-progress {
+            height: 3px;
+            background: var(--border);
+            border-radius: 4px;
+            margin-top: 6px;
+            overflow: hidden;
+        }
+        .task-card .task-check-progress .fill {
+            height: 100%;
+            background: var(--success);
+            transition: width 0.3s;
+        }
+
+        /* ===== MODAL ===== */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            padding: 20px;
+            animation: fadeModal 0.2s ease;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        @keyframes fadeModal {
+            from {
+                opacity: 0;
+                transform: scale(0.96);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        .modal {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            max-width: 640px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 24px;
+            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .modal-header h3 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+        .modal-close {
+            font-size: 24px;
+            background: none;
+            border: none;
+            color: var(--text-light);
+            cursor: pointer;
+        }
+        .modal-close:hover {
+            color: var(--text);
+        }
+        .modal-body {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .modal-body .form-row {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .modal-body .form-row label {
+            font-weight: 500;
+            font-size: 13px;
+            color: var(--text-light);
+        }
+        .modal-body .form-row .hint {
+            font-size: 12px;
+            color: var(--text-light);
+        }
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+        .modal .checklist-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+        }
+        .modal .checklist-item input[type="checkbox"] {
+            width: auto;
+            margin-right: 4px;
+        }
+        .modal .checklist-item .check-text {
+            flex: 1;
+        }
+        .modal .checklist-item .check-del {
+            color: var(--danger);
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        /* ===== TOAST ===== */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 3000;
+        }
+        .toast {
+            background: var(--bg-card);
+            color: var(--text);
+            padding: 12px 20px;
+            border-radius: var(--radius);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            border-left: 4px solid var(--primary);
+            animation: slideIn 0.3s ease;
+            max-width: 360px;
+            font-size: 14px;
+        }
+        .toast.success {
+            border-left-color: var(--success);
+        }
+        .toast.error {
+            border-left-color: var(--danger);
+        }
+        .toast.warning {
+            border-left-color: var(--warning);
+        }
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(40px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        /* ===== DASHBOARD ===== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 16px;
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+        .stat-card .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            display: block;
+        }
+        .stat-card .stat-label {
+            font-size: 13px;
+            color: var(--text-light);
+            margin-top: 4px;
+        }
+        .chart-container {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 16px;
+            box-shadow: var(--shadow);
+            margin-top: 16px;
+        }
+        .chart-container canvas {
+            width: 100% !important;
+            max-height: 240px;
+        }
+
+        /* ===== CALENDAR ===== */
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            margin-top: 12px;
+        }
+        .calendar-grid .day-header {
+            font-weight: 600;
+            text-align: center;
+            padding: 8px 0;
+            font-size: 13px;
+            color: var(--text-light);
+        }
+        .calendar-grid .day {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 8px 4px;
+            min-height: 60px;
+            text-align: center;
+            font-size: 14px;
+            box-shadow: var(--shadow);
+            cursor: default;
+            position: relative;
+        }
+        .calendar-grid .day.other-month {
+            opacity: 0.4;
+        }
+        .calendar-grid .day .day-number {
+            font-weight: 500;
+        }
+        .calendar-grid .day .day-tasks {
+            font-size: 10px;
+            color: var(--text-light);
+            margin-top: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            overflow: hidden;
+            max-height: 40px;
+        }
+        .calendar-grid .day .day-tasks .task-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 2px;
+        }
+        .calendar-nav {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            justify-content: center;
+            margin-bottom: 12px;
+        }
+
+        /* ===== NOTES ===== */
+        .notes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        .note-card {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 14px;
+            box-shadow: var(--shadow);
+            cursor: pointer;
+            transition: transform 0.2s;
+            border-top: 4px solid var(--primary);
+        }
+        .note-card:hover {
+            transform: translateY(-3px);
+        }
+        .note-card .note-title {
+            font-weight: 600;
+            font-size: 15px;
+        }
+        .note-card .note-preview {
+            font-size: 13px;
+            color: var(--text-light);
+            margin-top: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .note-card .note-date {
+            font-size: 11px;
+            color: var(--text-light);
+            margin-top: 8px;
+        }
+
+        /* ===== CENTRAL ADEVA ===== */
+        .widget-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 16px;
+        }
+        .widget {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 16px;
+            box-shadow: var(--shadow);
+            position: relative;
+        }
+        .widget h4 {
+            font-size: 15px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 6px;
+        }
+        .widget ul {
+            list-style: none;
+            padding: 0;
+        }
+        .widget ul li {
+            padding: 4px 0;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .widget .widget-content {
+            font-size: 13px;
+            color: var(--text-light);
+        }
+
+        /* ===== IA ===== */
+        .ia-layout {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .ia-config {
+            flex: 1 1 280px;
+            min-width: 200px;
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 16px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .ia-config label {
+            font-weight: 500;
+            font-size: 13px;
+            color: var(--text-light);
+        }
+        .ia-config .config-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .ia-chat {
+            flex: 2 1 400px;
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            min-height: 500px;
+            max-height: 80vh;
+        }
+        .ia-messages {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            font-family: var(--chat-font);
+            color: var(--chat-color);
+        }
+        .ia-message {
+            max-width: 80%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            background: var(--bg);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+            word-wrap: break-word;
+            line-height: 1.5;
+        }
+        .ia-message.user {
+            align-self: flex-end;
+            background: var(--primary);
+            color: #fff;
+        }
+        .ia-message.assistant {
+            align-self: flex-start;
+            background: var(--bg);
+            border-left: 4px solid var(--primary);
+        }
+        .ia-message .msg-time {
+            font-size: 10px;
+            color: var(--text-light);
+            margin-top: 4px;
+            text-align: right;
+            opacity: 0.7;
+        }
+        .ia-message.user .msg-time {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        .ia-message .msg-content {
+            font-size: 14px;
+        }
+        .ia-message .msg-content p {
+            margin: 0 0 6px 0;
+        }
+        .ia-message .msg-content ul,
+        .ia-message .msg-content ol {
+            margin: 4px 0 6px 16px;
+        }
+        .ia-message .msg-content code {
+            background: rgba(0, 0, 0, 0.06);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        .ia-message .msg-content pre {
+            background: rgba(0, 0, 0, 0.06);
+            padding: 8px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 0.9em;
+        }
+        .ia-input-area {
+            display: flex;
+            gap: 8px;
+            padding: 12px 16px;
+            border-top: 1px solid var(--border);
+            background: var(--bg-card);
+            border-radius: 0 0 var(--radius) var(--radius);
+        }
+        .ia-input-area textarea {
+            flex: 1;
+            min-height: 40px;
+            max-height: 120px;
+            resize: vertical;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 8px 12px;
+            font-family: inherit;
+        }
+        .ia-input-area button {
+            align-self: flex-end;
+        }
+
+        /* ===== CONFIGURAÇÕES ===== */
+        .config-section {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 16px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+        }
+        .config-section h3 {
+            margin-bottom: 12px;
+            font-size: 18px;
+        }
+        .config-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .config-item:last-child {
+            border-bottom: none;
+        }
+        .config-item .item-handle {
+            cursor: grab;
+            color: var(--text-light);
+        }
+        .config-item .item-actions {
+            display: flex;
+            gap: 4px;
+            margin-left: auto;
+        }
+        .config-item .item-actions button {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .config-item .item-actions button:hover {
+            background: var(--border);
+        }
+        .config-item input, .config-item select {
+            flex: 1;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                transform: translateX(-100%);
+                width: 260px;
+                padding-top: 56px;
+            }
+            .sidebar.open {
+                transform: translateX(0);
+            }
+            .sidebar-toggle {
+                display: block;
+            }
+            .main {
+                padding: 16px;
+                padding-top: 60px;
+            }
+            .kanban-column {
+                min-width: 220px;
+            }
+            .boards-grid {
+                grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .modal {
+                padding: 16px;
+                margin: 10px;
+            }
+            .ia-layout {
+                flex-direction: column;
+            }
+            .ia-config {
+                max-height: none;
+                flex: none;
+            }
+            .ia-chat {
+                min-height: 400px;
+                max-height: 60vh;
+            }
+        }
+        @media (max-width: 480px) {
+            .page-header h2 {
+                font-size: 20px;
+            }
+            .btn {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+            .boards-grid {
+                grid-template-columns: 1fr;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            .calendar-grid .day {
+                min-height: 40px;
+                font-size: 12px;
+                padding: 4px 2px;
+            }
+            .ia-message {
+                max-width: 95%;
+            }
+            .config-item {
+                flex-wrap: wrap;
+            }
+            .config-item .item-actions {
+                margin-left: 0;
+                width: 100%;
+                justify-content: flex-end;
+            }
+        }
+
+        /* ===== SCROLLBAR ===== */
+        .kanban-container::-webkit-scrollbar {
+            height: 6px;
+        }
+        .kanban-container::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 8px;
+        }
+
+        /* ===== MISC ===== */
+        .flex {
+            display: flex;
+        }
+        .flex-center {
+            align-items: center;
+            justify-content: center;
+        }
+        .gap-2 {
+            gap: 8px;
+        }
+        .gap-4 {
+            gap: 16px;
+        }
+        .mt-2 {
+            margin-top: 8px;
+        }
+        .mb-2 {
+            margin-bottom: 8px;
+        }
+        .w-full {
+            width: 100%;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .color-picker {
+            width: 40px;
+            height: 40px;
+            padding: 2px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            cursor: pointer;
+        }
+        .tag-color {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 4px;
+        }
+        .hidden {
+            display: none !important;
+        }
+
+        /* Brain Dump */
+        .brain-dump-area textarea {
+            min-height: 100px;
+        }
+        .brain-result {
+            background: var(--bg);
+            border-radius: var(--radius);
+            padding: 12px;
+            margin-top: 10px;
+        }
+        .brain-result .task-preview {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .file-upload-wrapper {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .file-upload-wrapper input[type="file"] {
+            flex: 1;
+        }
+        .file-upload-wrapper .file-name {
+            font-size: 12px;
+            color: var(--text-light);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 120px;
+        }
+        .model-select {
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 8px 12px;
+            width: 100%;
+            font-family: inherit;
+            cursor: pointer;
+        }
+        .model-select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        .model-select option {
+            background: var(--bg-card);
+            color: var(--text);
+        }
+
+        .model-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 14px;
+        }
+        .model-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+    </style>
+</head>
+<body>
+    <!-- ===== SIDEBAR TOGGLE (mobile) ===== -->
+    <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">☰</button>
+
+    <div class="app">
+        <!-- ===== SIDEBAR ===== -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand" id="appBrand">
+                📋 Adeva <span>TM</span>
+            </div>
+            <nav class="sidebar-nav" id="sidebarNav">
+                <!-- Itens gerados dinamicamente -->
+            </nav>
+            <div class="sidebar-footer">
+                <button id="themeToggle">🌓 Tema</button>
+                <button id="exportBtn">📤 Exportar</button>
+                <button id="importBtn">📥 Importar</button>
+            </div>
+        </aside>
+
+        <!-- ===== MAIN ===== -->
+        <main class="main">
+
+            <!-- ===== PAGE: BOARDS ===== -->
+            <section id="page-boards" class="page active">
+                <div class="page-header">
+                    <h2>📊 Meus Quadros</h2>
+                    <div class="page-actions">
+                        <button class="btn btn-primary" id="addBoardBtn">+ Novo Quadro</button>
+                    </div>
+                </div>
+                <div class="boards-grid" id="boardsGrid"></div>
+            </section>
+
+            <!-- ===== PAGE: DASHBOARD ===== -->
+            <section id="page-dashboard" class="page">
+                <div class="page-header">
+                    <h2>📈 Dashboard</h2>
+                </div>
+                <div class="stats-grid" id="dashboardStats"></div>
+                <div class="chart-container">
+                    <h4 style="margin-bottom:8px;">📊 Produtividade (últimos 7 dias)</h4>
+                    <canvas id="productivityChart" height="180"></canvas>
+                </div>
+            </section>
+
+            <!-- ===== PAGE: CALENDAR ===== -->
+            <section id="page-calendar" class="page">
+                <div class="page-header">
+                    <h2>📅 Calendário</h2>
+                </div>
+                <div class="calendar-nav">
+                    <button class="btn" id="calPrev">◀</button>
+                    <span id="calMonthYear" style="font-weight:600;min-width:160px;text-align:center;"></span>
+                    <button class="btn" id="calNext">▶</button>
+                </div>
+                <div class="calendar-grid" id="calendarGrid"></div>
+            </section>
+
+            <!-- ===== PAGE: NOTES ===== -->
+            <section id="page-notes" class="page">
+                <div class="page-header">
+                    <h2>📝 Notas Rápidas</h2>
+                    <div class="page-actions">
+                        <button class="btn btn-primary" id="addNoteBtn">+ Nova Nota</button>
+                    </div>
+                </div>
+                <div class="notes-grid" id="notesGrid"></div>
+            </section>
+
+            <!-- ===== PAGE: CENTRAL ADEVA ===== -->
+            <section id="page-central" class="page">
+                <div class="page-header">
+                    <h2>🏥 Central Adeva</h2>
+                </div>
+                <div class="widget-grid" id="centralWidgets"></div>
+            </section>
+
+            <!-- ===== PAGE: EXECUTIVE ===== -->
+            <section id="page-executive" class="page">
+                <div class="page-header">
+                    <h2>🎯 Modo Executivo</h2>
+                </div>
+                <div id="executiveContent"></div>
+            </section>
+
+            <!-- ===== PAGE: BRAIN DUMP ===== -->
+            <section id="page-braindump" class="page">
+                <div class="page-header">
+                    <h2>🧠 Brain Dump</h2>
+                </div>
+                <div class="brain-dump-area">
+                    <p>Descreva suas ideias ou tarefas em texto livre. O sistema criará tarefas automaticamente.</p>
+                    <textarea id="brainInput" placeholder="Ex: ligar para cliente Maria, criar campanha de limpeza de pele, analisar relatório financeiro"></textarea>
+                    <button class="btn btn-primary mt-2" id="brainProcess">⚡ Processar e Criar Tarefas</button>
+                    <div id="brainResult" class="brain-result hidden"></div>
+                </div>
+            </section>
+
+            <!-- ===== PAGE: ASSISTENTE IA ===== -->
+            <section id="page-ia" class="page">
+                <div class="page-header">
+                    <h2>🤖 Assistente IA</h2>
+                </div>
+                <div class="ia-layout">
+                    <!-- Configuração -->
+                    <div class="ia-config" id="iaConfig">
+                        <h4 style="margin-bottom:4px;">Configuração</h4>
+                        <div class="config-group">
+                            <label>Provedor</label>
+                            <select id="iaProvider">
+                                <option value="openai">OpenAI (ChatGPT)</option>
+                                <option value="groq">Groq</option>
+                                <option value="gemini">Google Gemini</option>
+                            </select>
+                        </div>
+                        <div class="config-group">
+                            <label>Modelo</label>
+                            <input type="text" id="iaModelInput" class="model-input" list="iaModelList" placeholder="Digite ou escolha um modelo..." />
+                            <datalist id="iaModelList">
+                                <!-- Preenchido dinamicamente -->
+                            </datalist>
+                        </div>
+                        <div class="config-group">
+                            <label>Chave da API</label>
+                            <input type="password" id="iaApiKey" placeholder="sk-... ou chave" />
+                        </div>
+                        <div class="config-group">
+                            <label>Contexto (opcional)</label>
+                            <textarea id="iaContext" rows="3" placeholder="Instruções iniciais para a IA..."></textarea>
+                        </div>
+                        <div class="config-group">
+                            <label>Arquivo de contexto (upload)</label>
+                            <div class="file-upload-wrapper">
+                                <input type="file" id="iaFileUpload" accept=".txt,.md,.json" />
+                                <span class="file-name" id="iaFileName">Nenhum</span>
+                                <button class="btn btn-sm btn-primary" id="iaFileClear">Limpar</button>
+                            </div>
+                        </div>
+                        <div class="config-group">
+                            <label>Fonte do chat</label>
+                            <select id="iaFontSelect">
+                                <option value="'Segoe UI', system-ui, sans-serif">Segoe UI</option>
+                                <option value="Arial, sans-serif">Arial</option>
+                                <option value="'Courier New', monospace">Courier New</option>
+                                <option value="Georgia, serif">Georgia</option>
+                                <option value="'Times New Roman', serif">Times New Roman</option>
+                            </select>
+                        </div>
+                        <div class="config-group">
+                            <label>Cor do texto do chat</label>
+                            <input type="color" id="iaColorPicker" value="#172b4d" />
+                        </div>
+                        <button class="btn btn-primary" id="iaSaveConfig">💾 Salvar Configuração</button>
+                        <button class="btn btn-danger" id="iaClearHistory">🗑️ Limpar Histórico</button>
+                    </div>
+
+                    <!-- Chat -->
+                    <div class="ia-chat">
+                        <div class="ia-messages" id="iaMessages"></div>
+                        <div class="ia-input-area">
+                            <textarea id="iaUserInput" rows="2" placeholder="Digite sua mensagem..."></textarea>
+                            <button class="btn btn-primary" id="iaSendBtn">Enviar</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ===== PAGE: CONFIGURAÇÕES ===== -->
+            <section id="page-config" class="page">
+                <div class="page-header">
+                    <h2>⚙️ Configurações</h2>
+                </div>
+                <div id="configContent"></div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- ===== MODAL ===== -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal" id="modalContent">
+            <div class="modal-header">
+                <h3 id="modalTitle">Título</h3>
+                <button class="modal-close" id="modalClose">✕</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-footer" id="modalFooter"></div>
+        </div>
+    </div>
+
+    <!-- ===== TOAST CONTAINER ===== -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // ================================================================
+        //  MÓDULO: StorageManager (ESTENDIDO)
+        // ================================================================
+        const StorageManager = {
+            get(key, fallback) {
+                try {
+                    const data = localStorage.getItem(key);
+                    return data ? JSON.parse(data) : fallback;
+                } catch (e) { return fallback; }
+            },
+            set(key, value) {
+                localStorage.setItem(key, JSON.stringify(value));
+            },
+            getAllData() {
+                const defaultData = {
+                    boards: [],
+                    categories: [],
+                    tags: [],
+                    notes: [],
+                    settings: { theme: 'light' },
+                    ia: {
+                        provider: 'openai',
+                        model: 'gpt-4o',
+                        apiKey: '',
+                        context: '',
+                        font: "'Segoe UI', system-ui, sans-serif",
+                        color: '#172b4d',
+                        messages: []
+                    },
+                    appName: '📋 Adeva',
+                    sidebarItems: [
+                        { id: 'boards', label: 'Quadros', icon: '📊', page: 'boards', order: 0 },
+                        { id: 'dashboard', label: 'Dashboard', icon: '📈', page: 'dashboard', order: 1 },
+                        { id: 'calendar', label: 'Calendário', icon: '📅', page: 'calendar', order: 2 },
+                        { id: 'notes', label: 'Notas', icon: '📝', page: 'notes', order: 3 },
+                        { id: 'central', label: 'Central Adeva', icon: '🏥', page: 'central', order: 4 },
+                        { id: 'executive', label: 'Modo Executivo', icon: '🎯', page: 'executive', order: 5 },
+                        { id: 'braindump', label: 'Brain Dump', icon: '🧠', page: 'braindump', order: 6 },
+                        { id: 'ia', label: 'Assistente IA', icon: '🤖', page: 'ia', order: 7 },
+                        { id: 'config', label: 'Configurações', icon: '⚙️', page: 'config', order: 8 }
+                    ],
+                    widgets: [
+                        { id: 'followups', title: '📌 Follow-ups pendentes', content: '{{followUps}} tarefas com etiqueta de follow-up', order: 0 },
+                        { id: 'clientes', title: '👥 Clientes para retornar', content: '{{followUps > 0 ? "Verifique tarefas com etiqueta \"Cliente\"" : "Nenhum cliente pendente"}}', order: 1 },
+                        { id: 'campanhas', title: '💡 Ideias de campanhas', content: '{{boardsCount > 0 ? "Crie tarefas com etiqueta \"Campanha\"" : "Nenhuma ideia registrada"}}', order: 2 },
+                        { id: 'tarefas_semana', title: '📋 Tarefas da semana', content: '{{totalTasks}} tarefas no total · {{todayTasks}} para hoje', order: 3 },
+                        { id: 'metas_mes', title: '🎯 Metas do mês', content: '{{boardsCount}} quadros ativos', order: 4 }
+                    ]
+                };
+                const data = this.get('adeva_data', null);
+                if (!data) {
+                    this.saveAllData(defaultData);
+                    return defaultData;
+                }
+                // Mesclar para garantir campos novos
+                if (!data.appName) data.appName = defaultData.appName;
+                if (!data.sidebarItems) data.sidebarItems = defaultData.sidebarItems;
+                if (!data.widgets) data.widgets = defaultData.widgets;
+                // Garantir que o item config exista
+                if (!data.sidebarItems.some(i => i.id === 'config')) {
+                    data.sidebarItems.push({ id: 'config', label: 'Configurações', icon: '⚙️', page: 'config', order: 999 });
+                }
+                this.saveAllData(data);
+                return data;
+            },
+            saveAllData(data) {
+                this.set('adeva_data', data);
+            },
+            getBoards() { return this.getAllData().boards; },
+            getCategories() { return this.getAllData().categories; },
+            getTags() { return this.getAllData().tags; },
+            getNotes() { return this.getAllData().notes; },
+            getSettings() { return this.getAllData().settings; },
+            getIA() { 
+                const all = this.getAllData();
+                if (!all.ia) {
+                    all.ia = {
+                        provider: 'openai',
+                        model: 'gpt-4o',
+                        apiKey: '',
+                        context: '',
+                        font: "'Segoe UI', system-ui, sans-serif",
+                        color: '#172b4d',
+                        messages: []
+                    };
+                    this.saveAllData(all);
+                }
+                return all.ia;
+            },
+            getAppName() { return this.getAllData().appName; },
+            getSidebarItems() { return this.getAllData().sidebarItems; },
+            getWidgets() { return this.getAllData().widgets; },
+            saveBoards(boards) { const d = this.getAllData(); d.boards = boards; this.saveAllData(d); },
+            saveCategories(categories) { const d = this.getAllData(); d.categories = categories; this.saveAllData(d); },
+            saveTags(tags) { const d = this.getAllData(); d.tags = tags; this.saveAllData(d); },
+            saveNotes(notes) { const d = this.getAllData(); d.notes = notes; this.saveAllData(d); },
+            saveSettings(settings) { const d = this.getAllData(); d.settings = settings; this.saveAllData(d); },
+            saveIA(ia) { const d = this.getAllData(); d.ia = ia; this.saveAllData(d); },
+            saveAppName(name) { const d = this.getAllData(); d.appName = name; this.saveAllData(d); },
+            saveSidebarItems(items) { const d = this.getAllData(); d.sidebarItems = items; this.saveAllData(d); },
+            saveWidgets(widgets) { const d = this.getAllData(); d.widgets = widgets; this.saveAllData(d); }
+        };
+
+        // ================================================================
+        //  MÓDULO: Helpers / Utilitários
+        // ================================================================
+        const Helpers = {
+            uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); },
+            today() { return new Date().toISOString().slice(0, 10); },
+            nowISO() { return new Date().toISOString(); },
+            formatDate(d) {
+                if (!d) return '';
+                const dt = new Date(d);
+                return dt.toLocaleDateString('pt-BR');
+            },
+            formatDateShort(d) {
+                if (!d) return '';
+                const dt = new Date(d);
+                return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            },
+            formatDateTime(d) {
+                if (!d) return '';
+                const dt = new Date(d);
+                return dt.toLocaleString('pt-BR');
+            },
+            isOverdue(due) {
+                if (!due) return false;
+                return new Date(due) < new Date() && new Date(due).toDateString() !== new Date().toDateString();
+            },
+            getPriorityColor(priority) {
+                const map = { baixa: '#61bd4f', media: '#f2b600', alta: '#f59e0b', critica: '#eb5a46' };
+                return map[priority] || '#aaa';
+            },
+            getPriorityLabel(p) {
+                const map = { baixa: 'Baixa', media: 'Média', alta: 'Alta', critica: 'Crítica' };
+                return map[p] || p;
+            },
+            getStatusLabel(status) {
+                const map = { todo: 'A Fazer', doing: 'Em Andamento', waiting: 'Aguardando', done: 'Concluído' };
+                return map[status] || status;
+            },
+            getCategoryName(id) {
+                const cats = StorageManager.getCategories();
+                const found = cats.find(c => c.id === id);
+                return found ? found.name : id;
+            },
+            getCategoryColor(id) {
+                const cats = StorageManager.getCategories();
+                const found = cats.find(c => c.id === id);
+                return found ? found.color : '#aaa';
+            },
+            getTagName(id) {
+                const tags = StorageManager.getTags();
+                const found = tags.find(t => t.id === id);
+                return found ? found.name : id;
+            },
+            getTagColor(id) {
+                const tags = StorageManager.getTags();
+                const found = tags.find(t => t.id === id);
+                return found ? found.color : '#aaa';
+            },
+            getBoard(id) {
+                return StorageManager.getBoards().find(b => b.id === id);
+            },
+            getColumn(boardId, colId) {
+                const board = this.getBoard(boardId);
+                if (!board) return null;
+                return board.columns.find(c => c.id === colId);
+            },
+            getTask(boardId, colId, taskId) {
+                const col = this.getColumn(boardId, colId);
+                if (!col) return null;
+                return col.tasks.find(t => t.id === taskId);
+            },
+            countTasks(board) {
+                let count = 0;
+                board.columns.forEach(c => count += c.tasks.length);
+                return count;
+            },
+            countDone(board) {
+                let count = 0;
+                const doneCol = board.columns.find(c => c.name.toLowerCase() === 'concluído' || c.name === 'Concluído');
+                if (doneCol) count = doneCol.tasks.length;
+                return count;
+            },
+            countOverdue(board) {
+                let count = 0;
+                board.columns.forEach(c => {
+                    c.tasks.forEach(t => {
+                        if (t.dueDate && this.isOverdue(t.dueDate)) count++;
+                    });
+                });
+                return count;
+            },
+            countInProgress(board) {
+                let count = 0;
+                const doingCol = board.columns.find(c => c.name.toLowerCase() === 'em andamento');
+                if (doingCol) count = doingCol.tasks.length;
+                return count;
+            },
+            markdownToHTML(text) {
+                if (!text) return '';
+                let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+                html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+                html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+                html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+                html = html.replace(/`(.*?)`/g, '<code>$1</code>');
+                html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+                html = html.replace(/^- (.*$)/gim, '<li>$1</li>');
+                html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+                html = html.replace(/^\d+\. (.*$)/gim, '<li>$1</li>');
+                html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+                html = html.replace(/\n/g, '<br>');
+                return html;
+            }
+        };
+
+        // ================================================================
+        //  MÓDULO: Toast
+        // ================================================================
+        const Toast = {
+            show(message, type = 'info', duration = 3000) {
+                const container = document.getElementById('toastContainer');
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                toast.textContent = message;
+                container.appendChild(toast);
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(20px)';
+                    setTimeout(() => toast.remove(), 300);
+                }, duration);
+            }
+        };
+
+        // ================================================================
+        //  MÓDULO: Modal
+        // ================================================================
+        const Modal = {
+            open(title, bodyHTML, footerHTML = '') {
+                document.getElementById('modalTitle').textContent = title;
+                document.getElementById('modalBody').innerHTML = bodyHTML;
+                document.getElementById('modalFooter').innerHTML = footerHTML || '';
+                document.getElementById('modalOverlay').classList.add('active');
+                document.getElementById('modalOverlay').onclick = (e) => {
+                    if (e.target === e.currentTarget) this.close();
+                };
+                document.getElementById('modalClose').onclick = () => this.close();
+            },
+            close() {
+                document.getElementById('modalOverlay').classList.remove('active');
+            },
+            getBody() { return document.getElementById('modalBody'); },
+            getFooter() { return document.getElementById('modalFooter'); }
+        };
+
+        // ================================================================
+        //  MÓDULO: BoardManager (sem alterações significativas)
+        // ================================================================
+        const BoardManager = {
+            init() {
+                this.renderBoards();
+                this.setupListeners();
+            },
+            renderBoards() {
+                const grid = document.getElementById('boardsGrid');
+                const boards = StorageManager.getBoards();
+                if (!boards.length) {
+                    grid.innerHTML = `<div class="text-center" style="grid-column:1/-1;padding:40px;color:var(--text-light);">
+                        Nenhum quadro criado. Clique em "+ Novo Quadro" para começar.
+                    </div>`;
+                    return;
+                }
+                grid.innerHTML = boards.map(b => {
+                    const total = Helpers.countTasks(b);
+                    const done = Helpers.countDone(b);
+                    const fav = b.favorite ? '⭐' : '☆';
+                    return `
+                    <div class="board-card" style="border-left-color:${b.color || '#ccc'}" data-board-id="${b.id}">
+                        <div class="board-actions">
+                            <button class="btn-icon" data-action="favorite" title="Favorito">${fav}</button>
+                            <button class="btn-icon" data-action="edit" title="Editar">✎</button>
+                            <button class="btn-icon" data-action="delete" title="Excluir">✕</button>
+                        </div>
+                        <div class="board-name">${b.name}</div>
+                        <div class="board-meta">
+                            <span>${total} tarefas · ${done} concluídas</span>
+                            <span style="font-size:11px;">${Helpers.formatDate(b.createdAt)}</span>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+                grid.querySelectorAll('.board-card').forEach(card => {
+                    card.addEventListener('click', (e) => {
+                        if (e.target.closest('.board-actions')) return;
+                        const id = card.dataset.boardId;
+                        this.openBoard(id);
+                    });
+                });
+                grid.querySelectorAll('[data-action="favorite"]').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const card = btn.closest('.board-card');
+                        const id = card.dataset.boardId;
+                        this.toggleFavorite(id);
+                    });
+                });
+                grid.querySelectorAll('[data-action="edit"]').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const card = btn.closest('.board-card');
+                        const id = card.dataset.boardId;
+                        this.editBoard(id);
+                    });
+                });
+                grid.querySelectorAll('[data-action="delete"]').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const card = btn.closest('.board-card');
+                        const id = card.dataset.boardId;
+                        this.deleteBoard(id);
+                    });
+                });
+            },
+            toggleFavorite(id) {
+                const boards = StorageManager.getBoards();
+                const board = boards.find(b => b.id === id);
+                if (board) {
+                    board.favorite = !board.favorite;
+                    StorageManager.saveBoards(boards);
+                    this.renderBoards();
+                    Toast.show(board.favorite ? 'Quadro favoritado!' : 'Favorito removido');
+                }
+            },
+            editBoard(id) {
+                const boards = StorageManager.getBoards();
+                const board = boards.find(b => b.id === id);
+                if (!board) return;
+                Modal.open('Editar Quadro', `
+                    <div class="form-row">
+                        <label>Nome</label>
+                        <input type="text" id="boardName" value="${board.name}" />
+                    </div>
+                    <div class="form-row">
+                        <label>Cor</label>
+                        <input type="color" id="boardColor" value="${board.color || '#0052cc'}" class="color-picker" />
+                    </div>
+                `, `
+                    <button class="btn btn-danger" id="modalCancel">Cancelar</button>
+                    <button class="btn btn-primary" id="modalSave">Salvar</button>
+                `);
+                document.getElementById('modalSave').onclick = () => {
+                    const name = document.getElementById('boardName').value.trim();
+                    const color = document.getElementById('boardColor').value;
+                    if (!name) { Toast.show('Nome é obrigatório', 'error'); return; }
+                    board.name = name;
+                    board.color = color;
+                    StorageManager.saveBoards(boards);
+                    Modal.close();
+                    this.renderBoards();
+                    Toast.show('Quadro atualizado!');
+                };
+                document.getElementById('modalCancel').onclick = () => Modal.close();
+            },
+            deleteBoard(id) {
+                if (!confirm('Tem certeza que deseja excluir este quadro e todas as tarefas?')) return;
+                let boards = StorageManager.getBoards();
+                boards = boards.filter(b => b.id !== id);
+                StorageManager.saveBoards(boards);
+                this.renderBoards();
+                Toast.show('Quadro excluído', 'error');
+            },
+            createBoard(name, color) {
+                const boards = StorageManager.getBoards();
+                const newBoard = {
+                    id: Helpers.uid(),
+                    name: name,
+                    color: color || '#0052cc',
+                    createdAt: Helpers.nowISO(),
+                    favorite: false,
+                    columns: [
+                        { id: Helpers.uid(), name: 'Caixa de Entrada', order: 0, tasks: [] },
+                        { id: Helpers.uid(), name: 'A Fazer', order: 1, tasks: [] },
+                        { id: Helpers.uid(), name: 'Em Andamento', order: 2, tasks: [] },
+                        { id: Helpers.uid(), name: 'Aguardando', order: 3, tasks: [] },
+                        { id: Helpers.uid(), name: 'Concluído', order: 4, tasks: [] }
+                    ]
+                };
+                boards.push(newBoard);
+                StorageManager.saveBoards(boards);
+                this.renderBoards();
+                Toast.show('Quadro criado!');
+                return newBoard;
+            },
+            openBoard(boardId) {
+                const board = Helpers.getBoard(boardId);
+                if (!board) { Toast.show('Quadro não encontrado', 'error'); return; }
+                sessionStorage.setItem('currentBoard', boardId);
+                const page = document.getElementById('page-boards');
+                page.innerHTML = '';
+                const header = document.createElement('div');
+                header.className = 'page-header';
+                const title = document.createElement('h2');
+                title.textContent = `📋 ${board.name}`;
+                const actions = document.createElement('div');
+                actions.className = 'page-actions';
+                const backBtn = document.createElement('button');
+                backBtn.className = 'btn';
+                backBtn.innerHTML = '← Voltar';
+                backBtn.onclick = () => {
+                    page.innerHTML = `
+                        <div class="page-header">
+                            <h2>📊 Meus Quadros</h2>
+                            <div class="page-actions">
+                                <button class="btn btn-primary" id="addBoardBtn">+ Novo Quadro</button>
+                            </div>
+                        </div>
+                        <div class="boards-grid" id="boardsGrid"></div>
+                    `;
+                    this.renderBoards();
+                    this.setupListeners();
+                };
+                actions.appendChild(backBtn);
+                const addTaskBtn = document.createElement('button');
+                addTaskBtn.className = 'btn btn-primary';
+                addTaskBtn.id = 'addTaskBtn';
+                addTaskBtn.textContent = '+ Tarefa';
+                addTaskBtn.onclick = () => this.addTask(boardId);
+                actions.appendChild(addTaskBtn);
+                const addColBtn = document.createElement('button');
+                addColBtn.className = 'btn';
+                addColBtn.id = 'addColumnBtn';
+                addColBtn.textContent = '+ Coluna';
+                addColBtn.onclick = () => this.addColumn(boardId);
+                actions.appendChild(addColBtn);
+                header.appendChild(title);
+                header.appendChild(actions);
+                page.appendChild(header);
+                const kanban = document.createElement('div');
+                kanban.className = 'kanban-container';
+                kanban.id = 'kanbanContainer';
+                page.appendChild(kanban);
+                this.renderKanban(board);
+            },
+            renderKanban(board) {
+                const container = document.getElementById('kanbanContainer');
+                if (!container) return;
+                const columns = board.columns.sort((a, b) => a.order - b.order);
+                container.innerHTML = columns.map(col => {
+                    const tasks = col.tasks || [];
+                    return `
+                    <div class="kanban-column" data-col-id="${col.id}" data-board-id="${board.id}">
+                        <div class="kanban-column-header">
+                            <div class="col-title">
+                                ${col.name}
+                                <span class="task-count">${tasks.length}</span>
+                            </div>
+                            <div class="col-actions">
+                                <button data-action="renameCol" title="Renomear">✎</button>
+                                <button data-action="deleteCol" title="Excluir">✕</button>
+                            </div>
+                        </div>
+                        <div class="kanban-tasks" data-col-id="${col.id}" data-board-id="${board.id}">
+                            ${tasks.map(t => this.renderTaskCard(t, board.id, col.id)).join('')}
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+                this.initDragDrop(board.id);
+                container.querySelectorAll('[data-action="renameCol"]').forEach(btn => {
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        const colDiv = btn.closest('.kanban-column');
+                        const colId = colDiv.dataset.colId;
+                        this.renameColumn(board.id, colId);
+                    };
+                });
+                container.querySelectorAll('[data-action="deleteCol"]').forEach(btn => {
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        const colDiv = btn.closest('.kanban-column');
+                        const colId = colDiv.dataset.colId;
+                        this.deleteColumn(board.id, colId);
+                    };
+                });
+                container.querySelectorAll('.task-card').forEach(card => {
+                    card.addEventListener('click', (e) => {
+                        if (e.target.closest('.task-actions')) return;
+                        const taskId = card.dataset.taskId;
+                        const colId = card.closest('.kanban-tasks').dataset.colId;
+                        this.editTask(board.id, colId, taskId);
+                    });
+                });
+            },
+            renderTaskCard(task, boardId, colId) {
+                const due = task.dueDate ? Helpers.formatDateShort(task.dueDate) : '';
+                const overdue = task.dueDate && Helpers.isOverdue(task.dueDate);
+                const priorityLabel = Helpers.getPriorityLabel(task.priority);
+                const priorityClass = `badge-priority-${task.priority || 'baixa'}`;
+                const tagsHTML = (task.tags || []).map(tagId => {
+                    const tag = StorageManager.getTags().find(t => t.id === tagId);
+                    return tag ? `<span class="tag" style="background:${tag.color || '#ccc'};">${tag.name}</span>` : '';
+                }).join('');
+                const checklist = task.checklist || [];
+                const total = checklist.length;
+                const done = checklist.filter(i => i.checked).length;
+                const progress = total ? (done / total * 100) : 0;
+                const progressBar = total ? `<div class="task-check-progress"><div class="fill" style="width:${progress}%"></div></div>` : '';
+
+                return `
+                <div class="task-card" draggable="true" data-task-id="${task.id}" data-col-id="${colId}" data-board-id="${boardId}">
+                    <div class="task-title">${task.title}</div>
+                    <div class="task-meta">
+                        <span class="badge ${priorityClass}">${priorityLabel}</span>
+                        ${task.category ? `<span class="badge" style="background:${Helpers.getCategoryColor(task.category)}20;color:${Helpers.getCategoryColor(task.category)};">${Helpers.getCategoryName(task.category)}</span>` : ''}
+                        ${due ? `<span class="due ${overdue ? 'overdue' : ''}">📅 ${due}</span>` : ''}
+                    </div>
+                    ${tagsHTML ? `<div class="task-tags">${tagsHTML}</div>` : ''}
+                    ${progressBar}
+                    <div class="task-footer">
+                        <span>${task.responsible || 'Sem responsável'}</span>
+                        ${task.favorite ? '⭐' : ''}
+                    </div>
+                </div>
+                `;
+            },
+            addTask(boardId) {
+                const board = Helpers.getBoard(boardId);
+                if (!board) return;
+                const colId = board.columns.length ? board.columns[0].id : null;
+                if (!colId) { Toast.show('Crie uma coluna primeiro', 'error'); return; }
+                this.showTaskModal(boardId, colId, null);
+            },
+            editTask(boardId, colId, taskId) {
+                this.showTaskModal(boardId, colId, taskId);
+            },
+            showTaskModal(boardId, colId, taskId) {
+                const board = Helpers.getBoard(boardId);
+                if (!board) return;
+                const isEdit = !!taskId;
+                let task = null;
+                if (isEdit) {
+                    task = Helpers.getTask(boardId, colId, taskId);
+                    if (!task) { Toast.show('Tarefa não encontrada', 'error'); return; }
+                } else {
+                    task = {
+                        id: Helpers.uid(),
+                        title: '',
+                        description: '',
+                        createdAt: Helpers.nowISO(),
+                        dueDate: '',
+                        priority: 'baixa',
+                        category: '',
+                        tags: [],
+                        observations: '',
+                        checklist: [],
+                        responsible: '',
+                        estimatedTime: 0,
+                        spentTime: 0,
+                        favorite: false
+                    };
+                }
+                const categories = StorageManager.getCategories();
+                const tags = StorageManager.getTags();
+                const cols = board.columns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+                const checklistHTML = (task.checklist || []).map((item, idx) => `
+                    <div class="checklist-item" data-idx="${idx}">
+                        <input type="checkbox" ${item.checked ? 'checked' : ''} />
+                        <span class="check-text">${item.text}</span>
+                        <span class="check-del" data-idx="${idx}">✕</span>
+                    </div>
+                `).join('');
+
+                Modal.open(`${isEdit ? 'Editar' : 'Nova'} Tarefa`, `
+                    <div class="form-row">
+                        <label>Título *</label>
+                        <input type="text" id="taskTitle" value="${task.title}" />
+                    </div>
+                    <div class="form-row">
+                        <label>Descrição</label>
+                        <textarea id="taskDesc">${task.description || ''}</textarea>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="form-row">
+                            <label>Data de Vencimento</label>
+                            <input type="date" id="taskDue" value="${task.dueDate || ''}" />
+                        </div>
+                        <div class="form-row">
+                            <label>Prioridade</label>
+                            <select id="taskPriority">
+                                <option value="baixa" ${task.priority === 'baixa' ? 'selected' : ''}>Baixa</option>
+                                <option value="media" ${task.priority === 'media' ? 'selected' : ''}>Média</option>
+                                <option value="alta" ${task.priority === 'alta' ? 'selected' : ''}>Alta</option>
+                                <option value="critica" ${task.priority === 'critica' ? 'selected' : ''}>Crítica</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="form-row">
+                            <label>Categoria</label>
+                            <select id="taskCategory">
+                                <option value="">Sem categoria</option>
+                                ${categories.map(c => `<option value="${c.id}" ${task.category === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Responsável</label>
+                            <input type="text" id="taskResponsible" value="${task.responsible || ''}" />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <label>Tags (selecione múltiplas)</label>
+                        <select id="taskTags" multiple style="height:60px;">
+                            ${tags.map(t => `<option value="${t.id}" ${(task.tags || []).includes(t.id) ? 'selected' : ''}>${t.name}</option>`).join('')}
+                        </select>
+                        <span class="hint">Segure Ctrl/Cmd para selecionar múltiplas</span>
+                    </div>
+                    <div class="form-row">
+                        <label>Observações</label>
+                        <textarea id="taskObs">${task.observations || ''}</textarea>
+                    </div>
+                    <div class="form-row">
+                        <label>Checklist</label>
+                        <div id="checklistContainer">
+                            ${checklistHTML}
+                        </div>
+                        <div style="display:flex;gap:8px;margin-top:4px;">
+                            <input type="text" id="newCheckItem" placeholder="Novo item" style="flex:1;" />
+                            <button class="btn btn-sm btn-primary" id="addCheckItem">+</button>
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="form-row">
+                            <label>Tempo estimado (horas)</label>
+                            <input type="number" id="taskEstTime" value="${task.estimatedTime || 0}" step="0.5" />
+                        </div>
+                        <div class="form-row">
+                            <label>Tempo gasto (horas)</label>
+                            <input type="number" id="taskSpentTime" value="${task.spentTime || 0}" step="0.5" />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <label>Coluna</label>
+                        <select id="taskColumn">${cols}</select>
+                    </div>
+                    <div class="form-row">
+                        <label><input type="checkbox" id="taskFavorite" ${task.favorite ? 'checked' : ''} /> Favoritar tarefa</label>
+                    </div>
+                `, `
+                    <button class="btn btn-danger" id="modalCancel">Cancelar</button>
+                    ${isEdit ? `<button class="btn btn-danger" id="taskDeleteBtn">Excluir</button>` : ''}
+                    <button class="btn btn-primary" id="modalSave">Salvar</button>
+                `);
+
+                document.getElementById('addCheckItem').onclick = () => {
+                    const input = document.getElementById('newCheckItem');
+                    const text = input.value.trim();
+                    if (!text) return;
+                    const container = document.getElementById('checklistContainer');
+                    const idx = container.children.length;
+                    const div = document.createElement('div');
+                    div.className = 'checklist-item';
+                    div.dataset.idx = idx;
+                    div.innerHTML = `
+                        <input type="checkbox" />
+                        <span class="check-text">${text}</span>
+                        <span class="check-del" data-idx="${idx}">✕</span>
+                    `;
+                    container.appendChild(div);
+                    input.value = '';
+                    this.reindexChecklist(container);
+                };
+                document.getElementById('checklistContainer').addEventListener('click', (e) => {
+                    if (e.target.classList.contains('check-del')) {
+                        const item = e.target.closest('.checklist-item');
+                        if (item) item.remove();
+                        this.reindexChecklist(document.getElementById('checklistContainer'));
+                    }
+                });
+
+                document.getElementById('modalSave').onclick = () => {
+                    const title = document.getElementById('taskTitle').value.trim();
+                    if (!title) { Toast.show('Título obrigatório', 'error'); return; }
+                    const description = document.getElementById('taskDesc').value;
+                    const dueDate = document.getElementById('taskDue').value;
+                    const priority = document.getElementById('taskPriority').value;
+                    const category = document.getElementById('taskCategory').value;
+                    const tags = Array.from(document.getElementById('taskTags').selectedOptions).map(o => o.value);
+                    const responsible = document.getElementById('taskResponsible').value;
+                    const observations = document.getElementById('taskObs').value;
+                    const estTime = parseFloat(document.getElementById('taskEstTime').value) || 0;
+                    const spentTime = parseFloat(document.getElementById('taskSpentTime').value) || 0;
+                    const favorite = document.getElementById('taskFavorite').checked;
+                    const newColId = document.getElementById('taskColumn').value;
+                    const checklistItems = [];
+                    document.querySelectorAll('#checklistContainer .checklist-item').forEach(item => {
+                        const text = item.querySelector('.check-text').textContent;
+                        const checked = item.querySelector('input[type="checkbox"]').checked;
+                        checklistItems.push({ id: Helpers.uid(), text, checked });
+                    });
+
+                    const taskData = {
+                        id: task.id,
+                        title,
+                        description,
+                        createdAt: task.createdAt || Helpers.nowISO(),
+                        dueDate,
+                        priority,
+                        category,
+                        tags,
+                        observations,
+                        checklist: checklistItems,
+                        responsible,
+                        estimatedTime: estTime,
+                        spentTime: spentTime,
+                        favorite
+                    };
+
+                    const boards = StorageManager.getBoards();
+                    const board = boards.find(b => b.id === boardId);
+                    if (!board) return;
+                    if (isEdit) {
+                        let found = false;
+                        board.columns.forEach(c => {
+                            const idx = c.tasks.findIndex(t => t.id === task.id);
+                            if (idx !== -1) {
+                                c.tasks.splice(idx, 1);
+                                found = true;
+                            }
+                        });
+                        if (!found) { Toast.show('Erro ao localizar tarefa', 'error'); return; }
+                        const targetCol = board.columns.find(c => c.id === newColId);
+                        if (targetCol) {
+                            targetCol.tasks.push(taskData);
+                        } else {
+                            Toast.show('Coluna destino não encontrada', 'error');
+                            return;
+                        }
+                    } else {
+                        const targetCol = board.columns.find(c => c.id === newColId);
+                        if (targetCol) {
+                            targetCol.tasks.push(taskData);
+                        } else {
+                            Toast.show('Coluna destino não encontrada', 'error');
+                            return;
+                        }
+                    }
+                    StorageManager.saveBoards(boards);
+                    Modal.close();
+                    this.renderKanban(board);
+                    Toast.show(isEdit ? 'Tarefa atualizada!' : 'Tarefa criada!');
+                };
+
+                document.getElementById('modalCancel').onclick = () => Modal.close();
+                if (document.getElementById('taskDeleteBtn')) {
+                    document.getElementById('taskDeleteBtn').onclick = () => {
+                        if (!confirm('Excluir tarefa?')) return;
+                        const boards = StorageManager.getBoards();
+                        const board = boards.find(b => b.id === boardId);
+                        if (board) {
+                            board.columns.forEach(c => {
+                                const idx = c.tasks.findIndex(t => t.id === task.id);
+                                if (idx !== -1) c.tasks.splice(idx, 1);
+                            });
+                            StorageManager.saveBoards(boards);
+                            Modal.close();
+                            this.renderKanban(board);
+                            Toast.show('Tarefa excluída', 'error');
+                        }
+                    };
+                }
+            },
+            reindexChecklist(container) {},
+            renameColumn(boardId, colId) {
+                const board = Helpers.getBoard(boardId);
+                if (!board) return;
+                const col = board.columns.find(c => c.id === colId);
+                if (!col) return;
+                Modal.open('Renomear Coluna', `
+                    <div class="form-row">
+                        <label>Novo nome</label>
+                        <input type="text" id="colName" value="${col.name}" />
+                    </div>
+                `, `
+                    <button class="btn btn-danger" id="modalCancel">Cancelar</button>
+                    <button class="btn btn-primary" id="modalSave">Salvar</button>
+                `);
+                document.getElementById('modalSave').onclick = () => {
+                    const name = document.getElementById('colName').value.trim();
+                    if (!name) { Toast.show('Nome obrigatório', 'error'); return; }
+                    col.name = name;
+                    StorageManager.saveBoards(StorageManager.getBoards());
+                    Modal.close();
+                    this.renderKanban(board);
+                    Toast.show('Coluna renomeada!');
+                };
+                document.getElementById('modalCancel').onclick = () => Modal.close();
+            },
+            deleteColumn(boardId, colId) {
+                const board = Helpers.getBoard(boardId);
+                if (!board) return;
+                const col = board.columns.find(c => c.id === colId);
+                if (!col) return;
+                if (col.tasks.length && !confirm(`A coluna "${col.name}" tem ${col.tasks.length} tarefas. Excluir mesmo assim?`))
+                    return;
+                board.columns = board.columns.filter(c => c.id !== colId);
+                board.columns.forEach((c, i) => c.order = i);
+                StorageManager.saveBoards(StorageManager.getBoards());
+                this.renderKanban(board);
+                Toast.show('Coluna excluída', 'error');
+            },
+            addColumn(boardId) {
+                const board = Helpers.getBoard(boardId);
+                if (!board) return;
+                Modal.open('Nova Coluna', `
+                    <div class="form-row">
+                        <label>Nome da coluna</label>
+                        <input type="text" id="newColName" placeholder="Ex: Em Revisão" />
+                    </div>
+                `, `
+                    <button class="btn btn-danger" id="modalCancel">Cancelar</button>
+                    <button class="btn btn-primary" id="modalSave">Criar</button>
+                `);
+                document.getElementById('modalSave').onclick = () => {
+                    const name = document.getElementById('newColName').value.trim();
+                    if (!name) { Toast.show('Nome obrigatório', 'error'); return; }
+                    const maxOrder = board.columns.reduce((max, c) => Math.max(max, c.order), 0);
+                    board.columns.push({
+                        id: Helpers.uid(),
+                        name: name,
+                        order: maxOrder + 1,
+                        tasks: []
+                    });
+                    StorageManager.saveBoards(StorageManager.getBoards());
+                    Modal.close();
+                    this.renderKanban(board);
+                    Toast.show('Coluna criada!');
+                };
+                document.getElementById('modalCancel').onclick = () => Modal.close();
+            },
+
+            initDragDrop(boardId) {
+                const containers = document.querySelectorAll('.kanban-tasks');
+                const cards = document.querySelectorAll('.task-card');
+
+                cards.forEach(card => {
+                    card.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.setData('text/plain', JSON.stringify({
+                            taskId: card.dataset.taskId,
+                            colId: card.dataset.colId,
+                            boardId: card.dataset.boardId
+                        }));
+                        card.classList.add('dragging');
+                    });
+                    card.addEventListener('dragend', () => {
+                        card.classList.remove('dragging');
+                        containers.forEach(c => c.classList.remove('drag-over'));
+                    });
+                });
+
+                containers.forEach(container => {
+                    container.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        container.classList.add('drag-over');
+                    });
+                    container.addEventListener('dragleave', () => {
+                        container.classList.remove('drag-over');
+                    });
+                    container.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        container.classList.remove('drag-over');
+                        const raw = e.dataTransfer.getData('text/plain');
+                        if (!raw) return;
+                        const data = JSON.parse(raw);
+                        const targetColId = container.dataset.colId;
+                        if (data.colId === targetColId) {
+                            this.reorderTasks(boardId, targetColId, data.taskId, container);
+                        } else {
+                            this.moveTask(boardId, data.colId, targetColId, data.taskId, container);
+                        }
+                    });
+                });
+
+                const columns = document.querySelectorAll('.kanban-column');
+                columns.forEach(col => {
+                    col.setAttribute('draggable', 'true');
+                    col.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.setData('text/plain', JSON.stringify({
+                            type: 'column',
+                            colId: col.dataset.colId,
+                            boardId: col.dataset.boardId
+                        }));
+                    });
+                    col.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                    });
+                    col.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        const raw = e.dataTransfer.getData('text/plain');
+                        if (!raw) return;
+                        const data = JSON.parse(raw);
+                        if (data.type === 'column' && data.boardId === boardId) {
+                            this.reorderColumns(boardId, data.colId, col.dataset.colId);
+                        }
+                    });
+                });
+            },
+
+            moveTask(boardId, fromColId, toColId, taskId, targetContainer) {
+                const boards = StorageManager.getBoards();
+                const board = boards.find(b => b.id === boardId);
+                if (!board) return;
+                const fromCol = board.columns.find(c => c.id === fromColId);
+                const toCol = board.columns.find(c => c.id === toColId);
+                if (!fromCol || !toCol) return;
+                const taskIndex = fromCol.tasks.findIndex(t => t.id === taskId);
+                if (taskIndex === -1) return;
+                const task = fromCol.tasks.splice(taskIndex, 1)[0];
+                const dropTarget = targetContainer.querySelector('.task-card');
+                if (dropTarget) {
+                    const dropTaskId = dropTarget.dataset.taskId;
+                    const dropIndex = toCol.tasks.findIndex(t => t.id === dropTaskId);
+                    if (dropIndex !== -1) {
+                        toCol.tasks.splice(dropIndex, 0, task);
+                    } else {
+                        toCol.tasks.push(task);
+                    }
+                } else {
+                    toCol.tasks.push(task);
+                }
+                StorageManager.saveBoards(boards);
+                this.renderKanban(board);
+                Toast.show('Tarefa movida!');
+            },
+
+            reorderTasks(boardId, colId, taskId, container) {
+                const boards = StorageManager.getBoards();
+                const board = boards.find(b => b.id === boardId);
+                if (!board) return;
+                const col = board.columns.find(c => c.id === colId);
+                if (!col) return;
+                const task = col.tasks.find(t => t.id === taskId);
+                if (!task) return;
+                const idx = col.tasks.indexOf(task);
+                col.tasks.splice(idx, 1);
+                const cards = container.querySelectorAll('.task-card');
+                let insertIndex = col.tasks.length;
+                for (let i = 0; i < cards.length; i++) {
+                    if (cards[i].dataset.taskId === taskId) {
+                        insertIndex = i;
+                        break;
+                    }
+                }
+                col.tasks.splice(insertIndex, 0, task);
+                StorageManager.saveBoards(boards);
+                this.renderKanban(board);
+            },
+
+            reorderColumns(boardId, fromColId, toColId) {
+                const boards = StorageManager.getBoards();
+                const board = boards.find(b => b.id === boardId);
+                if (!board) return;
+                const fromIdx = board.columns.findIndex(c => c.id === fromColId);
+                const toIdx = board.columns.findIndex(c => c.id === toColId);
+                if (fromIdx === -1 || toIdx === -1) return;
+                const [col] = board.columns.splice(fromIdx, 1);
+                board.columns.splice(toIdx, 0, col);
+                board.columns.forEach((c, i) => c.order = i);
+                StorageManager.saveBoards(boards);
+                this.renderKanban(board);
+                Toast.show('Coluna reordenada!');
+            },
+
+            setupListeners() {
+                const addBtn = document.getElementById('addBoardBtn');
+                if (addBtn) {
+                    addBtn.onclick = () => {
+                        Modal.open('Novo Quadro', `
+                            <div class="form-row">
+                                <label>Nome</label>
+                                <input type="text" id="newBoardName" placeholder="Ex: Clínica Adeva" />
+                            </div>
+                            <div class="form-row">
+                                <label>Cor</label>
+                                <input type="color" id="newBoardColor" value="#0052cc" class="color-picker" />
+                            </div>
+                        `, `
+                            <button class="btn btn-danger" id="modalCancel">Cancelar</button>
+                            <button class="btn btn-primary" id="modalSave">Criar</button>
+                        `);
+                        document.getElementById('modalSave').onclick = () => {
+                            const name = document.getElementById('newBoardName').value.trim();
+                            if (!name) { Toast.show('Nome obrigatório', 'error'); return; }
+                            const color = document.getElementById('newBoardColor').value;
+                            this.createBoard(name, color);
+                            Modal.close();
+                        };
+                        document.getElementById('modalCancel').onclick = () => Modal.close();
+                    };
+                }
+            }
+        };
+
+        // ================================================================
+        //  MÓDULO: DashboardManager (inalterado)
+        // ================================================================
+        const DashboardManager = {
+            init() {
+                this.renderStats();
+                this.renderChart();
+            },
+            renderStats() {
+                const boards = StorageManager.getBoards();
+                let total = 0,
+                    done = 0,
+                    overdue = 0,
+                    inProgress = 0;
+                boards.forEach(b => {
+                    total += Helpers.countTasks(b);
+                    done += Helpers.countDone(b);
+                    overdue += Helpers.countOverdue(b);
+                    inProgress += Helpers.countInProgress(b);
+                });
+                const percent = total ? Math.round((done / total) * 100) : 0;
+                document.getElementById('dashboardStats').innerHTML = `
+                    <div class="stat-card"><span class="stat-value">${total}</span><span class="stat-label">Total de Tarefas</span></div>
+                    <div class="stat-card"><span class="stat-value">${done}</span><span class="stat-label">Concluídas</span></div>
+                    <div class="stat-card"><span class="stat-value">${overdue}</span><span class="stat-label">Atrasadas</span></div>
+                    <div class="stat-card"><span class="stat-value">${inProgress}</span><span class="stat-label">Em Andamento</span></div>
+                    <div class="stat-card"><span class="stat-value">${percent}%</span><span class="stat-label">% Concluído</span></div>
+                `;
+            },
+            renderChart() {
+                const canvas = document.getElementById('productivityChart');
+                const ctx = canvas.getContext('2d');
+                const boards = StorageManager.getBoards();
+                const days = [];
+                const created = [];
+                const completed = [];
+                for (let i = 6; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(d.getDate() - i);
+                    const dateStr = d.toISOString().slice(0, 10);
+                    days.push(dateStr.slice(5));
+                    let createdCount = 0,
+                        doneCount = 0;
+                    boards.forEach(b => {
+                        b.columns.forEach(c => {
+                            c.tasks.forEach(t => {
+                                if (t.createdAt && t.createdAt.slice(0, 10) === dateStr) createdCount++;
+                                if (t.createdAt && t.createdAt.slice(0, 10) === dateStr && c.name
+                                    .toLowerCase() ===
+                                    'concluído') doneCount++;
+                            });
+                        });
+                    });
+                    created.push(createdCount);
+                    completed.push(doneCount);
+                }
+                const width = canvas.width = canvas.parentElement.clientWidth - 32;
+                const height = canvas.height = 180;
+                const padding = 40;
+                const chartWidth = width - padding * 2;
+                const chartHeight = height - padding * 2;
+                const maxVal = Math.max(1, ...created, ...completed);
+                ctx.clearRect(0, 0, width, height);
+
+                ctx.strokeStyle = '#ccc';
+                ctx.lineWidth = 0.5;
+                for (let i = 0; i <= 4; i++) {
+                    const y = padding + chartHeight - (i / 4) * chartHeight;
+                    ctx.beginPath();
+                    ctx.moveTo(padding, y);
+                    ctx.lineTo(width - padding, y);
+                    ctx.stroke();
+                    ctx.fillStyle = '#999';
+                    ctx.font = '10px sans-serif';
+                    ctx.textAlign = 'right';
+                    ctx.fillText(Math.round((i / 4) * maxVal), padding - 6, y + 4);
+                }
+
+                const drawLine = (data, color) => {
+                    ctx.beginPath();
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 2;
+                    data.forEach((val, i) => {
+                        const x = padding + (i / (data.length - 1)) * chartWidth;
+                        const y = padding + chartHeight - (val / maxVal) * chartHeight;
+                        if (i === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    });
+                    ctx.stroke();
+                    data.forEach((val, i) => {
+                        const x = padding + (i / (data.length - 1)) * chartWidth;
+                        const y = padding + chartHeight - (val / maxVal) * chartHeight;
+                        ctx.beginPath();
+                        ctx.arc(x, y, 3, 0, 2 * Math.PI);
+                        ctx.fillStyle = color;
+                        ctx.fill();
+                    });
+                };
+                drawLine(created, '#0052cc');
+                drawLine(completed, '#61bd4f');
+
+                ctx.fillStyle = '#999';
+                ctx.font = '10px sans-serif';
+                ctx.textAlign = 'center';
+                days.forEach((d, i) => {
+                    const x = padding + (i / (days.length - 1)) * chartWidth;
+                    ctx.fillText(d, x, height - 6);
+                });
+
+                ctx.fillStyle = '#0052cc';
+                ctx.fillRect(width - 120, 10, 12, 12);
+                ctx.fillStyle = '#666';
+                ctx.font = '11px sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText('Criadas', width - 104, 20);
+                ctx.fillStyle = '#61bd4f';
+                ctx.fillRect(width - 120, 28, 12, 12);
+                ctx.fillStyle = '#666';
+                ctx.fillText('Concluídas', width - 104, 38);
+            }
+        };
+
+        // ================================================================
+        //  MÓDULO: CalendarManager (inalterado)
+        // ================================================================
+        const CalendarManager = {
+            currentMonth: new Date().getMonth(),
+            currentYear: new Date().getFullYear(),
+            init() {
+                this.render();
+                document.getElementById('calPrev').onclick = () => { this.currentMonth--; if (this.currentMonth < 0) { this
+                            .currentMonth = 11;
+                        this.currentYear--; } this.render(); };
+                document.getElementById('calNext').onclick = () => { this.currentMonth++; if (this.currentMonth > 11) { this
+                            .currentMonth = 0;
+                        this.currentYear++; } this.render(); };
+            },
+            render() {
+                const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro',
+                    'Outubro', 'Novembro', 'Dezembro'
+                ];
+                document.getElementById('calMonthYear').textContent =
+                `${monthNames[this.currentMonth]} ${this.currentYear}`;
+                const grid = document.getElementById('calendarGrid');
+                const firstDay = new Date(this.currentYear, this.currentMonth, 1).getDay();
+                const daysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
+                const daysInPrev = new Date(this.currentYear, this.currentMonth, 0).getDate();
+
+                const headers = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                let html = headers.map(h => `<div class="day-header">${h}</div>`).join('');
+
+                const startOffset = firstDay === 0 ? 6 : firstDay - 1;
+                for (let i = startOffset; i > 0; i--) {
+                    const day = daysInPrev - i + 1;
+                    html += `<div class="day other-month"><span class="day-number">${day}</span></div>`;
+                }
+
+                const boards = StorageManager.getBoards();
+                const tasksByDate = {};
+                boards.forEach(b => {
+                    b.columns.forEach(c => {
+                        c.tasks.forEach(t => {
+                            if (t.dueDate) {
+                                const d = t.dueDate;
+                                if (!tasksByDate[d]) tasksByDate[d] = [];
+                                tasksByDate[d].push({ title: t.title, color: Helpers.getPriorityColor(t
+                                        .priority) });
+                            }
+                        });
+                    });
+                });
+
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const dateStr =
+                        `${this.currentYear}-${String(this.currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                    const tasks = tasksByDate[dateStr] || [];
+                    const taskDots = tasks.map(t =>
+                        `<span class="task-dot" style="background:${t.color};" title="${t.title}"></span>`
+                    ).join('');
+                    const taskCount = tasks.length;
+                    html += `<div class="day">
+                        <div class="day-number">${d}</div>
+                        <div class="day-tasks">${taskDots}</div>
+                        ${taskCount > 2 ? `<span style="font-size:9px;color:var(--text-light);">+${taskCount-2}</span>` : ''}
+                    </div>`;
+                }
+
+                const totalCells = startOffset + daysInMonth;
+                const remaining = (7 - (totalCells % 7)) % 7;
+                for (let i = 1; i <= remaining; i++) {
+                    html += `<div class="day other-month"><span class="day-number">${i}</span></div>`;
+                }
+
+                grid.innerHTML = html;
+            }
+        };
+
+        // ================================================================
+        //  MÓDULO: NotesManager (inalterado)
+        // ================================================================
+        const NotesManager = {
+            init() {
+                this.render();
+                document.getElementById('addNoteBtn').onclick = () => this.addNote();
+            },
+            render() {
+                const grid = document.getElementById('notesGrid');
+                const notes = StorageManager.getNotes();
+                if (!notes.length) {
+                    grid.innerHTML =
+                        `<div class="text-center" style="grid-column:1/-1;padding:40px;color:var(--text-light);">Nenhuma nota criada.</div>`;
+                    return;
+                }
+                grid.innerHTML = notes.map(n => `
+                    <div class="note-card" data-note-id="${n.id}">
+                        <div class="note-title">${n.title || 'Sem título'}</div>
+                        <div class="note-preview">${(n.content || '').slice(0, 60)}</div>
+                        <div class="note-date">${Helpers.formatDateTime(n.updatedAt || n.createdAt)}</div>
+                    </div>
+                `).join('');
+                grid.querySelectorAll('.note-card').forEach(card => {
+                    card.addEventListener('click', () => {
+                        const id = card.dataset.noteId;
+                        this.editNote(id);
+                    });
+                });
+            },
+            addNote() {
+                const notes = StorageManager.getNotes();
+                const newNote = {
+                    id: Helpers.uid(),
+                    title: 'Nova nota',
+                    content: '',
+                    createdAt: Helpers.nowISO(),
+                    updatedAt: Helpers.nowISO()
+                };
+                notes.push(newNote);
+                StorageManager.saveNotes(notes);
+                this.render();
+                this.editNote(newNote.id);
+            },
+            editNote(id) {
+                const notes = StorageManager.getNotes();
+                const note = notes.find(n => n.id === id);
+                if (!note) return;
+                Modal.open('Editar Nota', `
+                    <div class="form-row">
+                        <label>Título</label>
+                        <input type="text" id="noteTitle" value="${note.title || ''}" />
+                    </div>
+                    <div class="form-row">
+                        <label>Conteúdo</label>
+                        <textarea id="noteContent" style="min-height:150px;">${note.content || ''}</textarea>
+                    </div>
+                `, `
+                    <button class="btn btn-danger" id="modalCancel">Cancelar</button>
+                    <button class="btn btn-danger" id="noteDeleteBtn">Excluir</button>
+                    <button class="btn btn-primary" id="modalSave">Salvar</button>
+                `);
+                document.getElementById('modalSave').onclick = () => {
+                    note.title = document.getElementById('noteTitle').value.trim() || 'Sem título';
+                    note.content = document.getElementById('noteContent').value;
+                    note.updatedAt = Helpers.nowISO();
+                    StorageManager.saveNotes(notes);
+                    Modal.close();
+                    this.render();
+                    Toast.show('Nota salva!');
+                };
+                document.getElementById('modalCancel').onclick = () => Modal.close();
+                document.getElementById('noteDeleteBtn').onclick = () => {
+                    if (!confirm('Excluir nota?')) return;
+                    const idx = notes.indexOf(note);
+                    if (idx !== -1) notes.splice(idx, 1);
+                    StorageManager.saveNotes(notes);
+                    Modal.close();
+                    this.render();
+                    Toast.show('Nota excluída', 'error');
+                };
+            }
+        };
+
+        // ================================================================
+        //  MÓDULO: Central Adeva (AGORA DINÂMICO)
+        // ================================================================
+        const CentralManager = {
+            init() {
+                this.render();
+            },
+            render() {
+                const container = document.getElementById('centralWidgets');
+                const widgets = StorageManager.getWidgets();
+                if (!widgets.length) {
+                    container.innerHTML = `<div class="text-center" style="grid-column:1/-1;padding:40px;color:var(--text-light);">Nenhum widget configurado. Vá em Configurações para adicionar.</div>`;
+                    return;
+                }
+                // Calcular dados para os placeholders
+                const boards = StorageManager.getBoards();
+                let totalTasks = 0,
+                    todayTasks = 0,
+                    followUps = 0;
+                const today = new Date().toISOString().slice(0, 10);
+                boards.forEach(b => {
+                    b.columns.forEach(c => {
+                        c.tasks.forEach(t => {
+                            totalTasks++;
+                            if (t.dueDate === today) todayTasks++;
+                            if (t.tags && t.tags.some(tagId => {
+                                    const tag = StorageManager.getTags().find(tg => tg.id === tagId);
+                                    return tag && (tag.name.toLowerCase().includes('follow') || tag.name
+                                        .toLowerCase().includes('cliente'));
+                                })) followUps++;
+                        });
+                    });
+                });
+                const boardsCount = boards.length;
+
+                // Ordenar widgets por ordem
+                const sorted = [...widgets].sort((a, b) => (a.order || 0) - (b.order || 0));
+                container.innerHTML = sorted.map(w => {
+                    let content = w.content || '';
+                    // Substituir placeholders
+                    content = content.replace(/\{\{followUps\}\}/g, followUps);
+                    content = content.replace(/\{\{totalTasks\}\}/g, totalTasks);
+                    content = content.replace(/\{\{todayTasks\}\}/g, todayTasks);
+                    content = content.replace(/\{\{boardsCount\}\}/g, boardsCount);
+                    // Avaliar expressões simples com eval? Melhor usar replace condicional manual.
+                    // Para a expressão {{followUps > 0 ? "..." : "..."}} farei um replace especial
+                    content = content.replace(/\{\{followUps\s*>\s*0\s*\?\s*"([^"]*)"\s*:\s*"([^"]*)"\}\}/g, (match, trueText, falseText) => {
+                        return followUps > 0 ? trueText : falseText;
+                    });
+                    // Outras condições simples podem ser adicionadas
+
+                    return `
+                    <div class="widget" data-widget-id="${w.id}">
+                        <h4>${w.title}</h4>
+                        <div class="widget-content">${content}</div>
+                    </div>
+                    `;
+                }).join('');
+            }
+        };
+
+        // ================================================================
+        //  MÓDULO: Modo Executivo (inalterado)
+        // ================================================================
+        const ExecutiveManager = {
+            init() {
+                this.render();
+            },
+            render() {
+                const container = document.getElementById('executiveContent');
+                const boards = StorageManager.getBoards();
+                let critical = [],
+                    overdue = [],
+                    todayTasks = [];
+                const today = new Date().toISOString().slice(0, 10);
+                boards.forEach(b => {
+                    b.columns.forEach(c => {
+                        c.tasks.forEach(t => {
+                            if (t.priority === 'critica') critical.push(t);
+                            if (t.dueDate && Helpers.isOverdue(t.dueDate)) overdue.push(t);
+                            if (t.dueDate === today) todayTasks.push(t);
+                        });
+                    });
+                });
+                const total = boards.reduce((acc, b) => acc + Helpers.countTasks(b), 0);
+                const done = boards.reduce((acc, b) => acc + Helpers.countDone(b), 0);
+                const percent = total ? Math.round((done / total) * 100) : 0;
+
+                container.innerHTML = `
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:20px;">
+                        <div class="stat-card"><span class="stat-value">${critical.length}</span><span class="stat-label">Críticas</span></div>
+                        <div class="stat-card"><span class="stat-value">${overdue.length}</span><span class="stat-label">Atrasadas</span></div>
+                        <div class="stat-card"><span class="stat-value">${todayTasks.length}</span><span class="stat-label">Hoje</span></div>
+                        <div class="stat-card"><span class="stat-value">${percent}%</span><span class="stat-label">Concluído</span></div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                        <div class="widget"><h4>🚨 Pendências Críticas</h4><ul>${critical.length ? critical.map(t => `<li>🔴 ${t.title}</li>`).join('') : '<li>Nenhuma</li>'}</ul></div>
+                        <div class="widget"><h4>📅 Agenda do Dia</h4><ul>${todayTasks.length ? todayTasks.map(t => `<li>📌 ${t.title}</li>`).join('') : '<li>Nenhuma tarefa para hoje</li>'}</ul></div>
+                    </div>
+                `;
+            }
+        };
+
+        // ================================================================
+        //  MÓDULO: Brain Dump (inalterado)
+        // ================================================================
+        const BrainDumpManager = {
+            init() {
+                document.getElementById('brainProcess').onclick = () => this.process();
+            },
+            process() {
+                const input = document.getElementById('brainInput');
+                const text = input.value.trim();
+                if (!text) { Toast.show('Digite algo para processar', 'warning'); return; }
+                const items = text.split(/[,.\n]+/).map(s => s.trim()).filter(s => s.length > 0);
+                if (!items.length) { Toast.show('Nenhum item identificado', 'warning'); return; }
+                let boards = StorageManager.getBoards();
+                let targetBoard = boards.length ? boards[0] : null;
+                if (!targetBoard) {
+                    const board = BoardManager.createBoard('Brain Dump', '#6c5ce7');
+                    boards = StorageManager.getBoards();
+                    targetBoard = boards.find(b => b.id === board.id);
+                }
+                if (!targetBoard) { Toast.show('Erro ao criar tarefas', 'error'); return; }
+                let col = targetBoard.columns.find(c => c.name === 'A Fazer');
+                if (!col) col = targetBoard.columns[0];
+                if (!col) { Toast.show('Nenhuma coluna disponível', 'error'); return; }
+
+                let count = 0;
+                items.forEach(item => {
+                    col.tasks.push({
+                        id: Helpers.uid(),
+                        title: item,
+                        description: '',
+                        createdAt: Helpers.nowISO(),
+                        dueDate: '',
+                        priority: 'baixa',
+                        category: '',
+                        tags: [],
+                        observations: '',
+                        checklist: [],
+                        responsible: '',
+                        estimatedTime: 0,
+                        spentTime: 0,
+                        favorite: false
+                    });
+                    count++;
+                });
+                StorageManager.saveBoards(boards);
+                document.getElementById('brainResult').innerHTML = `
+                    <p>✅ ${count} tarefas criadas no quadro "${targetBoard.name}"</p>
+                    <div>${items.map(i => `<div class="task-preview"><span>📌 ${i}</span></div>`).join('')}</div>
+                `;
+                document.getElementById('brainResult').classList.remove('hidden');
+                input.value = '';
+                Toast.show(`${count} tarefas criadas!`);
+                BoardManager.renderBoards();
+            }
+        };
+
+        // ================================================================
+        //  MÓDULO: Assistente IA (inalterado)
+        // ================================================================
+        const AIManager = {
+            init() {
+                this.loadConfig();
+                this.renderMessages();
+                this.setupListeners();
+                this.applyStyle();
+                this.updateModelList();
+                document.getElementById('iaProvider').addEventListener('change', () => this.updateModelList());
+            },
+            updateModelList() {
+                const provider = document.getElementById('iaProvider').value;
+                const datalist = document.getElementById('iaModelList');
+                const input = document.getElementById('iaModelInput');
+                const currentValue = input.value;
+                datalist.innerHTML = '';
+
+                const models = {
+                    openai: [
+                        'gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo', 'gpt-3.5-turbo-16k'
+                    ],
+                    groq: [
+                        'llama-3.3-70b-versatile',
+                        'llama-3.1-70b-versatile',
+                        'llama-3.1-8b-instant',
+                        'llama-guard-3-8b',
+                        'gemma2-9b-it'
+                    ],
+                    gemini: [
+                        'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro', 'gemini-1.0-pro'
+                    ]
+                };
+
+                const providerModels = models[provider] || models.openai;
+                providerModels.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    datalist.appendChild(option);
+                });
+
+                if (currentValue && providerModels.includes(currentValue)) {
+                    input.value = currentValue;
+                } else if (providerModels.length > 0) {
+                    input.value = providerModels[0];
+                }
+            },
+            loadConfig() {
+                const ia = StorageManager.getIA();
+                document.getElementById('iaProvider').value = ia.provider || 'openai';
+                this.updateModelList();
+                document.getElementById('iaModelInput').value = ia.model || 'gpt-4o';
+                document.getElementById('iaApiKey').value = ia.apiKey || '';
+                document.getElementById('iaContext').value = ia.context || '';
+                document.getElementById('iaFontSelect').value = ia.font || "'Segoe UI', system-ui, sans-serif";
+                document.getElementById('iaColorPicker').value = ia.color || '#172b4d';
+                document.documentElement.style.setProperty('--chat-font', ia.font || "'Segoe UI', system-ui, sans-serif");
+                document.documentElement.style.setProperty('--chat-color', ia.color || '#172b4d');
+            },
+            saveConfig() {
+                const ia = {
+                    provider: document.getElementById('iaProvider').value,
+                    model: document.getElementById('iaModelInput').value.trim() || 'gpt-4o',
+                    apiKey: document.getElementById('iaApiKey').value.trim(),
+                    context: document.getElementById('iaContext').value.trim(),
+                    font: document.getElementById('iaFontSelect').value,
+                    color: document.getElementById('iaColorPicker').value,
+                    messages: StorageManager.getIA().messages || []
+                };
+                StorageManager.saveIA(ia);
+                this.applyStyle();
+                Modal.open('✅ Configurações salvas', 'Suas configurações foram salvas com sucesso!',
+                    `<button class="btn btn-primary" id="modalOk">OK</button>`
+                );
+                document.getElementById('modalOk').onclick = () => Modal.close();
+                Toast.show('✅ Configurações salvas com sucesso!', 'success');
+            },
+            applyStyle() {
+                const ia = StorageManager.getIA();
+                document.documentElement.style.setProperty('--chat-font', ia.font || "'Segoe UI', system-ui, sans-serif");
+                document.documentElement.style.setProperty('--chat-color', ia.color || '#172b4d');
+            },
+            renderMessages() {
+                const container = document.getElementById('iaMessages');
+                const ia = StorageManager.getIA();
+                const messages = ia.messages || [];
+                container.innerHTML = messages.map(msg => {
+                    const isUser = msg.role === 'user';
+                    const time = msg.timestamp ? Helpers.formatDateTime(msg.timestamp) : '';
+                    const contentHTML = isUser ? msg.content : Helpers.markdownToHTML(msg.content);
+                    return `
+                        <div class="ia-message ${isUser ? 'user' : 'assistant'}">
+                            <div class="msg-content">${contentHTML}</div>
+                            ${time ? `<div class="msg-time">${time}</div>` : ''}
+                        </div>
+                    `;
+                }).join('');
+                container.scrollTop = container.scrollHeight;
+            },
+            setupListeners() {
+                document.getElementById('iaSaveConfig').onclick = () => this.saveConfig();
+                document.getElementById('iaClearHistory').onclick = () => {
+                    if (!confirm('Limpar todo o histórico de conversas?')) return;
+                    const ia = StorageManager.getIA();
+                    ia.messages = [];
+                    StorageManager.saveIA(ia);
+                    this.renderMessages();
+                    Toast.show('Histórico limpo');
+                };
+                document.getElementById('iaSendBtn').onclick = () => this.sendMessage();
+                document.getElementById('iaUserInput').addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
+                document.getElementById('iaFileUpload').addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        const content = ev.target.result;
+                        const contextArea = document.getElementById('iaContext');
+                        const existing = contextArea.value;
+                        const fileName = file.name;
+                        contextArea.value = existing ? `${existing}\n\n[Arquivo: ${fileName}]\n${content}` :
+                            `[Arquivo: ${fileName}]\n${content}`;
+                        document.getElementById('iaFileName').textContent = fileName;
+                        Toast.show(`Arquivo "${fileName}" carregado no contexto`);
+                        this.saveConfig();
+                    };
+                    reader.readAsText(file);
+                });
+                document.getElementById('iaFileClear').onclick = () => {
+                    document.getElementById('iaFileUpload').value = '';
+                    document.getElementById('iaFileName').textContent = 'Nenhum';
+                    Toast.show('Arquivo removido');
+                };
+                document.getElementById('iaFontSelect').onchange = () => this.saveConfig();
+                document.getElementById('iaColorPicker').onchange = () => this.saveConfig();
+                document.getElementById('iaProvider').addEventListener('change', () => this.updateModelList());
+            },
+            async sendMessage() {
+                const input = document.getElementById('iaUserInput');
+                const text = input.value.trim();
+                if (!text) {
+                    Toast.show('Digite uma mensagem.', 'warning');
+                    return;
+                }
+                const ia = StorageManager.getIA();
+                if (!ia.apiKey || ia.apiKey.trim() === '') {
+                    Toast.show('⚠️ Configure sua chave da API antes de enviar mensagens.', 'error');
+                    return;
+                }
+                if (!ia.messages) ia.messages = [];
+                ia.messages.push({ role: 'user', content: text, timestamp: Helpers.nowISO() });
+                StorageManager.saveIA(ia);
+                this.renderMessages();
+                input.value = '';
+
+                const thinkingMsg = document.createElement('div');
+                thinkingMsg.className = 'ia-message assistant';
+                thinkingMsg.innerHTML = '<div class="msg-content">⏳ Pensando...</div>';
+                document.getElementById('iaMessages').appendChild(thinkingMsg);
+                document.getElementById('iaMessages').scrollTop = document.getElementById('iaMessages').scrollHeight;
+
+                try {
+                    const response = await this.callAPI(ia, text);
+                    thinkingMsg.remove();
+                    ia.messages.push({ role: 'assistant', content: response, timestamp: Helpers.nowISO() });
+                    StorageManager.saveIA(ia);
+                    this.renderMessages();
+                    Toast.show('✅ Resposta recebida!', 'success');
+                } catch (err) {
+                    thinkingMsg.remove();
+                    const errorMsg = `❌ Erro: ${err.message || 'Falha na comunicação com a IA'}`;
+                    ia.messages.push({ role: 'assistant', content: errorMsg, timestamp: Helpers.nowISO() });
+                    StorageManager.saveIA(ia);
+                    this.renderMessages();
+                    Toast.show('Erro ao chamar a API: ' + err.message, 'error');
+                }
+            },
+            async callAPI(ia, userMessage) {
+                const provider = ia.provider || 'openai';
+                const model = ia.model || 'gpt-4o';
+                const apiKey = ia.apiKey;
+                if (!apiKey) throw new Error('Chave da API não configurada');
+
+                const history = ia.messages || [];
+                const recent = history.slice(-20);
+                const messages = [];
+                const context = ia.context || '';
+                if (context) {
+                    messages.push({ role: 'system', content: context });
+                }
+                const previous = recent.slice(0, -1);
+                previous.forEach(msg => {
+                    messages.push({ role: msg.role, content: msg.content });
+                });
+                messages.push({ role: 'user', content: userMessage });
+
+                let url, body, headers = {};
+
+                if (provider === 'openai') {
+                    url = 'https://api.openai.com/v1/chat/completions';
+                    headers = {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    };
+                    body = {
+                        model: model,
+                        messages: messages,
+                        temperature: 0.7,
+                        max_tokens: 1024,
+                    };
+                } else if (provider === 'groq') {
+                    url = 'https://api.groq.com/openai/v1/chat/completions';
+                    headers = {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    };
+                    body = {
+                        model: model || 'llama-3.3-70b-versatile',
+                        messages: messages,
+                        temperature: 0.7,
+                        max_tokens: 1024,
+                    };
+                } else if (provider === 'gemini') {
+                    url =
+                    `https://generativelanguage.googleapis.com/v1/models/${model || 'gemini-pro'}:generateContent?key=${apiKey}`;
+                    headers = {
+                        'Content-Type': 'application/json'
+                    };
+                    const contents = messages.map(msg => ({
+                        role: msg.role === 'user' ? 'user' : 'model',
+                        parts: [{ text: msg.content }]
+                    }));
+                    body = {
+                        contents: contents,
+                        generationConfig: {
+                            temperature: 0.7,
+                            maxOutputTokens: 1024,
+                        }
+                    };
+                } else {
+                    throw new Error('Provedor não suportado');
+                }
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(body)
+                });
+
+                if (!response.ok) {
+                    let errorMsg = `HTTP ${response.status}`;
+                    try {
+                        const errData = await response.json();
+                        errorMsg = errData.error?.message || errorMsg;
+                    } catch (e) { /* ignore */ }
+                    throw new Error(errorMsg);
+                }
+
+                const data = await response.json();
+                if (provider === 'gemini') {
+                    return data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sem resposta';
+                } else {
+                    return data.choices?.[0]?.message?.content || 'Sem resposta';
+                }
+            }
+        };
+
+        // ================================================================
+        //  MÓDULO: ConfigManager (NOVO)
+        // ================================================================
+        const ConfigManager = {
+            init() {
+                this.render();
+            },
+            render() {
+                const container = document.getElementById('configContent');
+                const appName = StorageManager.getAppName();
+                const sidebarItems = StorageManager.getSidebarItems();
+                const widgets = StorageManager.getWidgets();
+
+                let html = `
+                    <div class="config-section">
+                        <h3>🏷️ Nome da Aplicação</h3>
+                        <div class="config-item">
+                            <input type="text" id="appNameInput" value="${appName}" placeholder="Ex: Meu Gerenciador" />
+                            <button class="btn btn-primary" id="saveAppNameBtn">Salvar</button>
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <h3>📂 Abas Laterais</h3>
+                        <p class="hint" style="margin-bottom:8px;">Gerencie os itens do menu lateral. Clique em "Adicionar" para criar uma nova aba.</p>
+                        <div id="sidebarItemsList">
+                            ${sidebarItems.sort((a,b) => (a.order||0) - (b.order||0)).map(item => `
+                                <div class="config-item" data-id="${item.id}">
+                                    <span class="item-handle">⠿</span>
+                                    <input type="text" class="sidebar-label" value="${item.label}" placeholder="Rótulo" />
+                                    <input type="text" class="sidebar-icon" value="${item.icon}" placeholder="Ícone" style="max-width:50px;" />
+                                    <select class="sidebar-page">
+                                        ${['boards','dashboard','calendar','notes','central','executive','braindump','ia','config'].map(p => 
+                                            `<option value="${p}" ${item.page === p ? 'selected' : ''}>${p}</option>`
+                                        ).join('')}
+                                    </select>
+                                    <div class="item-actions">
+                                        <button class="btn-icon move-up" title="Mover para cima">↑</button>
+                                        <button class="btn-icon move-down" title="Mover para baixo">↓</button>
+                                        <button class="btn-icon delete-item" title="Excluir" ${item.id === 'config' ? 'disabled style="opacity:0.5;"' : ''}>✕</button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <button class="btn btn-primary mt-2" id="addSidebarItemBtn">+ Adicionar Aba</button>
+                    </div>
+
+                    <div class="config-section">
+                        <h3>🧩 Widgets da Central Adeva</h3>
+                        <p class="hint" style="margin-bottom:8px;">Personalize os cartões da Central Adeva. Use placeholders como <code>{{totalTasks}}</code>, <code>{{todayTasks}}</code>, <code>{{followUps}}</code>, <code>{{boardsCount}}</code>.</p>
+                        <div id="widgetsList">
+                            ${widgets.sort((a,b) => (a.order||0) - (b.order||0)).map(w => `
+                                <div class="config-item" data-id="${w.id}">
+                                    <span class="item-handle">⠿</span>
+                                    <input type="text" class="widget-title" value="${w.title}" placeholder="Título" />
+                                    <input type="text" class="widget-content" value="${w.content}" placeholder="Conteúdo" style="flex:2;" />
+                                    <div class="item-actions">
+                                        <button class="btn-icon move-up" title="Mover para cima">↑</button>
+                                        <button class="btn-icon move-down" title="Mover para baixo">↓</button>
+                                        <button class="btn-icon delete-item" title="Excluir">✕</button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <button class="btn btn-primary mt-2" id="addWidgetBtn">+ Adicionar Widget</button>
+                    </div>
+
+                    <div class="config-section">
+                        <h3>📤 Exportar / 📥 Importar</h3>
+                        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                            <button class="btn btn-primary" data-export="json">JSON</button>
+                            <button class="btn btn-primary" data-export="csv">CSV</button>
+                            <button class="btn btn-primary" data-export="xml">XML</button>
+                            <button class="btn btn-primary" data-export="yaml">YAML</button>
+                            <button class="btn btn-primary" data-export="toml">TOML</button>
+                            <button class="btn btn-primary" data-export="txt">TXT</button>
+                            <button class="btn btn-primary" data-export="html">HTML</button>
+                            <button class="btn btn-success" id="importDataBtn">📥 Importar</button>
+                            <input type="file" id="importFileInput" accept=".json,.xml,.yaml,.yml,.toml,.txt" style="display:none;" />
+                        </div>
+                    </div>
+                `;
+
+                container.innerHTML = html;
+
+                // Event listeners
+                document.getElementById('saveAppNameBtn').addEventListener('click', () => {
+                    const name = document.getElementById('appNameInput').value.trim();
+                    if (name) {
+                        StorageManager.saveAppName(name);
+                        Toast.show('Nome atualizado!');
+                        this.updateBrand(name);
+                    } else {
+                        Toast.show('Digite um nome válido', 'error');
+                    }
+                });
+
+                // Sidebar items
+                document.getElementById('addSidebarItemBtn').addEventListener('click', () => {
+                    const items = StorageManager.getSidebarItems();
+                    const maxOrder = items.reduce((max, i) => Math.max(max, i.order || 0), 0);
+                    items.push({
+                        id: Helpers.uid(),
+                        label: 'Nova Aba',
+                        icon: '📄',
+                        page: 'boards',
+                        order: maxOrder + 1
+                    });
+                    StorageManager.saveSidebarItems(items);
+                    this.render();
+                    this.updateSidebar();
+                    Toast.show('Aba adicionada!');
+                });
+
+                document.getElementById('sidebarItemsList').addEventListener('click', (e) => {
+                    const target = e.target.closest('button');
+                    if (!target) return;
+                    const itemDiv = target.closest('.config-item');
+                    if (!itemDiv) return;
+                    const id = itemDiv.dataset.id;
+                    const items = StorageManager.getSidebarItems();
+                    const idx = items.findIndex(i => i.id === id);
+                    if (idx === -1) return;
+                    if (target.classList.contains('delete-item')) {
+                        if (id === 'config') { Toast.show('Não é possível excluir a aba Configurações', 'error'); return; }
+                        if (!confirm('Excluir esta aba?')) return;
+                        items.splice(idx, 1);
+                        StorageManager.saveSidebarItems(items);
+                        this.render();
+                        this.updateSidebar();
+                        Toast.show('Aba excluída');
+                    } else if (target.classList.contains('move-up')) {
+                        if (idx > 0) {
+                            [items[idx], items[idx-1]] = [items[idx-1], items[idx]];
+                            items.forEach((i, index) => i.order = index);
+                            StorageManager.saveSidebarItems(items);
+                            this.render();
+                            this.updateSidebar();
+                        }
+                    } else if (target.classList.contains('move-down')) {
+                        if (idx < items.length - 1) {
+                            [items[idx], items[idx+1]] = [items[idx+1], items[idx]];
+                            items.forEach((i, index) => i.order = index);
+                            StorageManager.saveSidebarItems(items);
+                            this.render();
+                            this.updateSidebar();
+                        }
+                    }
+                });
+
+                document.getElementById('sidebarItemsList').addEventListener('change', (e) => {
+                    const target = e.target;
+                    const itemDiv = target.closest('.config-item');
+                    if (!itemDiv) return;
+                    const id = itemDiv.dataset.id;
+                    const items = StorageManager.getSidebarItems();
+                    const item = items.find(i => i.id === id);
+                    if (!item) return;
+                    if (target.classList.contains('sidebar-label')) {
+                        item.label = target.value.trim() || 'Sem nome';
+                    } else if (target.classList.contains('sidebar-icon')) {
+                        item.icon = target.value.trim() || '📄';
+                    } else if (target.classList.contains('sidebar-page')) {
+                        item.page = target.value;
+                    }
+                    StorageManager.saveSidebarItems(items);
+                    this.updateSidebar();
+                });
+
+                // Widgets
+                document.getElementById('addWidgetBtn').addEventListener('click', () => {
+                    const widgets = StorageManager.getWidgets();
+                    const maxOrder = widgets.reduce((max, w) => Math.max(max, w.order || 0), 0);
+                    widgets.push({
+                        id: Helpers.uid(),
+                        title: 'Novo Widget',
+                        content: 'Conteúdo do widget',
+                        order: maxOrder + 1
+                    });
+                    StorageManager.saveWidgets(widgets);
+                    this.render();
+                    CentralManager.render();
+                    Toast.show('Widget adicionado!');
+                });
+
+                document.getElementById('widgetsList').addEventListener('click', (e) => {
+                    const target = e.target.closest('button');
+                    if (!target) return;
+                    const itemDiv = target.closest('.config-item');
+                    if (!itemDiv) return;
+                    const id = itemDiv.dataset.id;
+                    const widgets = StorageManager.getWidgets();
+                    const idx = widgets.findIndex(w => w.id === id);
+                    if (idx === -1) return;
+                    if (target.classList.contains('delete-item')) {
+                        if (!confirm('Excluir este widget?')) return;
+                        widgets.splice(idx, 1);
+                        StorageManager.saveWidgets(widgets);
+                        this.render();
+                        CentralManager.render();
+                        Toast.show('Widget excluído');
+                    } else if (target.classList.contains('move-up')) {
+                        if (idx > 0) {
+                            [widgets[idx], widgets[idx-1]] = [widgets[idx-1], widgets[idx]];
+                            widgets.forEach((w, index) => w.order = index);
+                            StorageManager.saveWidgets(widgets);
+                            this.render();
+                            CentralManager.render();
+                        }
+                    } else if (target.classList.contains('move-down')) {
+                        if (idx < widgets.length - 1) {
+                            [widgets[idx], widgets[idx+1]] = [widgets[idx+1], widgets[idx]];
+                            widgets.forEach((w, index) => w.order = index);
+                            StorageManager.saveWidgets(widgets);
+                            this.render();
+                            CentralManager.render();
+                        }
+                    }
+                });
+
+                document.getElementById('widgetsList').addEventListener('change', (e) => {
+                    const target = e.target;
+                    const itemDiv = target.closest('.config-item');
+                    if (!itemDiv) return;
+                    const id = itemDiv.dataset.id;
+                    const widgets = StorageManager.getWidgets();
+                    const widget = widgets.find(w => w.id === id);
+                    if (!widget) return;
+                    if (target.classList.contains('widget-title')) {
+                        widget.title = target.value.trim() || 'Sem título';
+                    } else if (target.classList.contains('widget-content')) {
+                        widget.content = target.value;
+                    }
+                    StorageManager.saveWidgets(widgets);
+                    CentralManager.render();
+                });
+
+                // Export/Import
+                document.querySelectorAll('[data-export]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const format = btn.dataset.export;
+                        ExportManager.exportData(format);
+                    });
+                });
+
+                document.getElementById('importDataBtn').addEventListener('click', () => {
+                    document.getElementById('importFileInput').click();
+                });
+
+                document.getElementById('importFileInput').addEventListener('change', (e) => {
+                    if (e.target.files.length) {
+                        ExportManager.importData(e.target.files[0]);
+                        e.target.value = '';
+                    }
+                });
+            },
+
+            updateBrand(name) {
+                const brand = document.getElementById('appBrand');
+                brand.innerHTML = `${name} <span>TM</span>`;
+            },
+
+            updateSidebar() {
+                const nav = document.getElementById('sidebarNav');
+                const items = StorageManager.getSidebarItems();
+                const sorted = items.sort((a, b) => (a.order || 0) - (b.order || 0));
+                nav.innerHTML = sorted.map(item => {
+                    const active = document.querySelector('.sidebar-nav a.active')?.dataset.page === item.page ? 'active' : '';
+                    return `<a href="#" data-page="${item.page}" class="${active}"><span class="icon">${item.icon}</span> ${item.label}</a>`;
+                }).join('');
+                // Reattach click events
+                nav.querySelectorAll('a').forEach(link => {
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+                        link.classList.add('active');
+                        const page = link.dataset.page;
+                        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                        document.getElementById(`page-${page}`).classList.add('active');
+                        document.getElementById('sidebar').classList.remove('open');
+                        if (page === 'dashboard') DashboardManager.init();
+                        if (page === 'calendar') CalendarManager.render();
+                        if (page === 'notes') NotesManager.render();
+                        if (page === 'central') CentralManager.render();
+                        if (page === 'executive') ExecutiveManager.render();
+                        if (page === 'braindump') { /* já inicializado */ }
+                        if (page === 'ia') AIManager.init();
+                        if (page === 'boards') BoardManager.renderBoards();
+                        if (page === 'config') ConfigManager.render();
+                    });
+                });
+            }
+        };
+
+        // ================================================================
+        //  MÓDULO: Export / Import (ESTENDIDO)
+        // ================================================================
+        const ExportManager = {
+            exportData(format) {
+                const data = StorageManager.getAllData();
+                let content = '';
+                let mimeType = 'text/plain';
+                let extension = 'txt';
+
+                switch (format) {
+                    case 'json':
+                        content = JSON.stringify(data, null, 2);
+                        mimeType = 'application/json';
+                        extension = 'json';
+                        break;
+                    case 'csv':
+                        content = this.toCSV(data);
+                        mimeType = 'text/csv';
+                        extension = 'csv';
+                        break;
+                    case 'xml':
+                        content = this.toXML(data);
+                        mimeType = 'application/xml';
+                        extension = 'xml';
+                        break;
+                    case 'yaml':
+                        if (typeof jsyaml !== 'undefined') {
+                            content = jsyaml.dump(data);
+                        } else {
+                            Toast.show('Biblioteca YAML não carregada', 'error');
+                            return;
+                        }
+                        extension = 'yaml';
+                        break;
+                    case 'toml':
+                        if (typeof TOML !== 'undefined') {
+                            content = TOML.stringify(data);
+                        } else {
+                            Toast.show('Biblioteca TOML não carregada', 'error');
+                            return;
+                        }
+                        extension = 'toml';
+                        break;
+                    case 'txt':
+                        content = this.toTXT(data);
+                        extension = 'txt';
+                        break;
+                    case 'html':
+                        content = this.toHTML(data);
+                        mimeType = 'text/html';
+                        extension = 'html';
+                        break;
+                    default:
+                        Toast.show('Formato não suportado', 'error');
+                        return;
+                }
+
+                const blob = new Blob([content], { type: mimeType });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `adeva_data.${extension}`;
+                a.click();
+                URL.revokeObjectURL(url);
+                Toast.show(`Exportado como ${format.toUpperCase()}`);
+            },
+
+            importData(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        let data;
+                        const ext = file.name.split('.').pop().toLowerCase();
+                        const content = e.target.result;
+
+                        if (ext === 'json') {
+                            data = JSON.parse(content);
+                        } else if (ext === 'xml') {
+                            data = this.parseXML(content);
+                        } else if (ext === 'yaml' || ext === 'yml') {
+                            if (typeof jsyaml !== 'undefined') {
+                                data = jsyaml.load(content);
+                            } else {
+                                throw new Error('Biblioteca YAML não carregada');
+                            }
+                        } else if (ext === 'toml') {
+                            if (typeof TOML !== 'undefined') {
+                                data = TOML.parse(content);
+                            } else {
+                                throw new Error('Biblioteca TOML não carregada');
+                            }
+                        } else if (ext === 'txt') {
+                            // Tentar interpretar como JSON
+                            try {
+                                data = JSON.parse(content);
+                            } catch (e2) {
+                                throw new Error('Arquivo TXT não está em formato JSON válido');
+                            }
+                        } else {
+                            throw new Error('Formato não suportado para importação');
+                        }
+
+                        if (!data.boards || !data.notes) {
+                            throw new Error('Estrutura de dados inválida');
+                        }
+
+                        StorageManager.saveAllData(data);
+                        Toast.show('Dados importados com sucesso! Recarregue a página.', 'success');
+                        location.reload();
+                    } catch (err) {
+                        Toast.show('Erro ao importar: ' + err.message, 'error');
+                    }
+                };
+                reader.readAsText(file);
+            },
+
+            toCSV(data) {
+                let csv = 'Board,Coluna,Título,Descrição,Data Criação,Data Vencimento,Prioridade,Categoria,Responsável,Status\n';
+                data.boards.forEach(b => {
+                    b.columns.forEach(c => {
+                        c.tasks.forEach(t => {
+                            const status = c.name;
+                            csv +=
+                                `"${b.name}","${c.name}","${t.title}","${t.description || ''}","${t.createdAt || ''}","${t.dueDate || ''}","${t.priority || ''}","${Helpers.getCategoryName(t.category)}","${t.responsible || ''}","${status}"\n`;
+                        });
+                    });
+                });
+                return csv;
+            },
+
+            toXML(data) {
+                let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<adeva>\n';
+                // Boards
+                xml += '  <boards>\n';
+                data.boards.forEach(b => {
+                    xml += `    <board id="${b.id}" name="${b.name}" color="${b.color || ''}" createdAt="${b.createdAt}" favorite="${b.favorite}">\n`;
+                    b.columns.forEach(c => {
+                        xml += `      <column id="${c.id}" name="${c.name}" order="${c.order}">\n`;
+                        c.tasks.forEach(t => {
+                            xml += `        <task id="${t.id}" title="${t.title}" priority="${t.priority}" category="${t.category}" responsible="${t.responsible}" dueDate="${t.dueDate}" favorite="${t.favorite}">\n`;
+                            xml += `          <description><![CDATA[${t.description || ''}]]></description>\n`;
+                            xml += `          <observations><![CDATA[${t.observations || ''}]]></observations>\n`;
+                            xml +=
+                                `          <estimatedTime>${t.estimatedTime || 0}</estimatedTime>\n`;
+                            xml +=
+                                `          <spentTime>${t.spentTime || 0}</spentTime>\n`;
+                            xml += `          <tags>${(t.tags || []).join(',')}</tags>\n`;
+                            xml += `          <checklist>\n`;
+                            (t.checklist || []).forEach(item => {
+                                xml +=
+                                    `            <item checked="${item.checked}">${item.text}</item>\n`;
+                            });
+                            xml += `          </checklist>\n`;
+                            xml += `        </task>\n`;
+                        });
+                        xml += `      </column>\n`;
+                    });
+                    xml += `    </board>\n`;
+                });
+                xml += '  </boards>\n';
+                // Notes
+                xml += '  <notes>\n';
+                data.notes.forEach(n => {
+                    xml +=
+                        `    <note id="${n.id}" title="${n.title}" createdAt="${n.createdAt}" updatedAt="${n.updatedAt}"><![CDATA[${n.content || ''}]]></note>\n`;
+                });
+                xml += '  </notes>\n';
+                // Settings
+                xml += `  <settings theme="${data.settings.theme}" />\n`;
+                xml += `  <appName>${data.appName}</appName>\n`;
+                // IA
+                xml += '  <ia>\n';
+                xml += `    <provider>${data.ia.provider}</provider>\n`;
+                xml += `    <model>${data.ia.model}</model>\n`;
+                xml += `    <context><![CDATA[${data.ia.context || ''}]]></context>\n`;
+                xml += `    <font>${data.ia.font}</font>\n`;
+                xml += `    <color>${data.ia.color}</color>\n`;
+                xml += '  </ia>\n';
+                xml += '</adeva>';
+                return xml;
+            },
+
+            parseXML(xmlString) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(xmlString, 'text/xml');
+                const root = doc.documentElement;
+                if (root.tagName !== 'adeva') throw new Error('Elemento raiz deve ser <adeva>');
+
+                const data = {
+                    boards: [],
+                    categories: [],
+                    tags: [],
+                    notes: [],
+                    settings: { theme: 'light' },
+                    ia: {
+                        provider: 'openai',
+                        model: 'gpt-4o',
+                        apiKey: '',
+                        context: '',
+                        font: "'Segoe UI', system-ui, sans-serif",
+                        color: '#172b4d',
+                        messages: []
+                    },
+                    appName: '📋 Adeva',
+                    sidebarItems: [],
+                    widgets: []
+                };
+
+                // Ler appName
+                const appNameNode = root.querySelector('appName');
+                if (appNameNode) data.appName = appNameNode.textContent;
+
+                // Ler boards
+                const boardsNode = root.querySelector('boards');
+                if (boardsNode) {
+                    boardsNode.querySelectorAll('board').forEach(boardNode => {
+                        const board = {
+                            id: boardNode.getAttribute('id') || Helpers.uid(),
+                            name: boardNode.getAttribute('name') || 'Sem nome',
+                            color: boardNode.getAttribute('color') || '#0052cc',
+                            createdAt: boardNode.getAttribute('createdAt') || Helpers.nowISO(),
+                            favorite: boardNode.getAttribute('favorite') === 'true',
+                            columns: []
+                        };
+                        boardNode.querySelectorAll('column').forEach(colNode => {
+                            const col = {
+                                id: colNode.getAttribute('id') || Helpers.uid(),
+                                name: colNode.getAttribute('name') || 'Coluna',
+                                order: parseInt(colNode.getAttribute('order') || 0),
+                                tasks: []
+                            };
+                            colNode.querySelectorAll('task').forEach(taskNode => {
+                                const task = {
+                                    id: taskNode.getAttribute('id') || Helpers.uid(),
+                                    title: taskNode.getAttribute('title') || 'Tarefa',
+                                    priority: taskNode.getAttribute('priority') || 'baixa',
+                                    category: taskNode.getAttribute('category') || '',
+                                    responsible: taskNode.getAttribute('responsible') || '',
+                                    dueDate: taskNode.getAttribute('dueDate') || '',
+                                    favorite: taskNode.getAttribute('favorite') === 'true',
+                                    description: '',
+                                    observations: '',
+                                    estimatedTime: 0,
+                                    spentTime: 0,
+                                    tags: [],
+                                    checklist: [],
+                                    createdAt: Helpers.nowISO()
+                                };
+                                const desc = taskNode.querySelector('description');
+                                if (desc) task.description = desc.textContent || '';
+                                const obs = taskNode.querySelector('observations');
+                                if (obs) task.observations = obs.textContent || '';
+                                const est = taskNode.querySelector('estimatedTime');
+                                if (est) task.estimatedTime = parseFloat(est.textContent) || 0;
+                                const spent = taskNode.querySelector('spentTime');
+                                if (spent) task.spentTime = parseFloat(spent.textContent) || 0;
+                                const tagsNode = taskNode.querySelector('tags');
+                                if (tagsNode) {
+                                    task.tags = tagsNode.textContent.split(',').map(s => s.trim()).filter(Boolean);
+                                }
+                                const checklistNode = taskNode.querySelector('checklist');
+                                if (checklistNode) {
+                                    checklistNode.querySelectorAll('item').forEach(itemNode => {
+                                        task.checklist.push({
+                                            id: Helpers.uid(),
+                                            text: itemNode.textContent || '',
+                                            checked: itemNode.getAttribute('checked') === 'true'
+                                        });
+                                    });
+                                }
+                                col.tasks.push(task);
+                            });
+                            board.columns.push(col);
+                        });
+                        data.boards.push(board);
+                    });
+                }
+
+                // Ler notes
+                const notesNode = root.querySelector('notes');
+                if (notesNode) {
+                    notesNode.querySelectorAll('note').forEach(noteNode => {
+                        data.notes.push({
+                            id: noteNode.getAttribute('id') || Helpers.uid(),
+                            title: noteNode.getAttribute('title') || 'Sem título',
+                            content: noteNode.textContent || '',
+                            createdAt: noteNode.getAttribute('createdAt') || Helpers.nowISO(),
+                            updatedAt: noteNode.getAttribute('updatedAt') || Helpers.nowISO()
+                        });
+                    });
+                }
+
+                // Ler settings
+                const settingsNode = root.querySelector('settings');
+                if (settingsNode) {
+                    data.settings.theme = settingsNode.getAttribute('theme') || 'light';
+                }
+
+                // Ler IA
+                const iaNode = root.querySelector('ia');
+                if (iaNode) {
+                    data.ia.provider = iaNode.querySelector('provider')?.textContent || 'openai';
+                    data.ia.model = iaNode.querySelector('model')?.textContent || 'gpt-4o';
+                    data.ia.context = iaNode.querySelector('context')?.textContent || '';
+                    data.ia.font = iaNode.querySelector('font')?.textContent || "'Segoe UI', system-ui, sans-serif";
+                    data.ia.color = iaNode.querySelector('color')?.textContent || '#172b4d';
+                }
+
+                return data;
+            },
+
+            toTXT(data) {
+                let txt = '=== ADEVA DATA EXPORT ===\n\n';
+                txt += `App Name: ${data.appName}\n`;
+                txt += `Theme: ${data.settings.theme}\n\n`;
+                txt += '--- BOARDS ---\n';
+                data.boards.forEach(b => {
+                    txt += `\nBoard: ${b.name} (${b.id})\n`;
+                    txt += `  Columns:\n`;
+                    b.columns.forEach(c => {
+                        txt += `    - ${c.name} (${c.tasks.length} tasks)\n`;
+                        c.tasks.forEach(t => {
+                            txt += `      * ${t.title} [${t.priority}] ${t.dueDate ? 'due: '+t.dueDate : ''}\n`;
+                        });
+                    });
+                });
+                txt += '\n--- NOTES ---\n';
+                data.notes.forEach(n => {
+                    txt += `\n${n.title} (${Helpers.formatDateTime(n.createdAt)})\n`;
+                    txt += `${n.content || ''}\n`;
+                });
+                return txt;
+            },
+
+            toHTML(data) {
+                let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Export Adeva</title><style>body{font-family:sans-serif;margin:20px;}</style></head><body>`;
+                html += `<h1>${data.appName}</h1>`;
+                html += `<p>Tema: ${data.settings.theme}</p>`;
+                html += `<h2>Quadros</h2>`;
+                data.boards.forEach(b => {
+                    html += `<h3>${b.name}</h3>`;
+                    b.columns.forEach(c => {
+                        html += `<h4>${c.name}</h4><ul>`;
+                        c.tasks.forEach(t => {
+                            html += `<li>${t.title} (${t.priority}) ${t.dueDate ? '📅 '+t.dueDate : ''}</li>`;
+                        });
+                        html += `</ul>`;
+                    });
+                });
+                html += `<h2>Notas</h2>`;
+                data.notes.forEach(n => {
+                    html += `<div><strong>${n.title}</strong> - ${Helpers.formatDateTime(n.createdAt)}<p>${n.content || ''}</p></div>`;
+                });
+                html += `</body></html>`;
+                return html;
+            }
+        };
+
+        // ================================================================
+        //  NAVEGAÇÃO E INICIALIZAÇÃO
+        // ================================================================
+        document.addEventListener('DOMContentLoaded', () => {
+            // Tema
+            const settings = StorageManager.getSettings();
+            const theme = settings.theme || 'light';
+            document.documentElement.setAttribute('data-theme', theme);
+            document.getElementById('themeToggle').onclick = () => {
+                const current = document.documentElement.getAttribute('data-theme');
+                const next = current === 'light' ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-theme', next);
+                const settings = StorageManager.getSettings();
+                settings.theme = next;
+                StorageManager.saveSettings(settings);
+                Toast.show(`Tema ${next === 'light' ? 'claro' : 'escuro'}`);
+            };
+
+            // Sidebar toggle mobile
+            document.getElementById('sidebarToggle').onclick = () => {
+                document.getElementById('sidebar').classList.toggle('open');
+            };
+
+            // Inicializar sidebar dinâmica
+            ConfigManager.updateSidebar();
+            // Atualizar nome da marca
+            ConfigManager.updateBrand(StorageManager.getAppName());
+
+            // Navegação (os links são gerenciados dentro do updateSidebar via eventos)
+            // Mas precisamos garantir que o clique nos links da sidebar funcione.
+            // Já está sendo feito no ConfigManager.updateSidebar.
+
+            // Export / Import (já configurado via ConfigManager.render)
+
+            // Inicializar módulos
+            BoardManager.init();
+            DashboardManager.init();
+            CalendarManager.init();
+            NotesManager.init();
+            CentralManager.init();
+            ExecutiveManager.init();
+            BrainDumpManager.init();
+            AIManager.init();
+            // ConfigManager será chamado quando a página de configuração for acessada
+
+            Toast.show('Bem-vindo ao Task Manager! 🚀', 'success');
+        });
+    </script>
+</body>
+</html>
